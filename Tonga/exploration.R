@@ -14,15 +14,24 @@ ggplot(tonga_to_plot)+
   facet_wrap( .~ Station)
 
 tonga_to_plot <- tonga_to_plot %>%
-  group_by(round(Pressure)/5, Station) %>%
+  mutate(Pressure = round(Pressure)) %>% 
+  group_by(Pressure, Station) %>%
   summarise_at(.vars = c("F440", "F470"), .funs = list(mean)) %>%
+  mutate(ratio440_470 = F440 / F470) %>% 
   ungroup()
-names(tonga_to_plot) <- c("Pressure", "Station", "F440", "F470")
+
 
 ggplot(tonga_to_plot)+
-  geom_point(aes(x = F440, y = -Pressure*5, colour = "F440"))+
-  geom_point(aes(x = F470, y = -Pressure*5, colour = "F470"))+
+  geom_path(aes(x = F440, y = -Pressure, colour = "F440"), size = 0.9)+
+  geom_path(aes(x = F470, y = -Pressure, colour = "F470"), size = 0.9)+
   scale_color_brewer(palette = "Set1")+
+  ylim(-500,0)+
+  theme_minimal()+
+  facet_wrap( .~ Station)
+
+ggplot(tonga_to_plot)+
+  geom_path(aes(x = ratio440_470, y = -Pressure), size = 0.9)+
+  geom_line(aes(x = 1, y = -Pressure), colour = "Red")+
   ylim(-500,0)+
   theme_minimal()+
   facet_wrap( .~ Station)
