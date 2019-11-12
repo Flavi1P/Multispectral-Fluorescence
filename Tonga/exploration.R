@@ -13,12 +13,16 @@ ggplot(tonga_to_plot)+
   theme_minimal()+
   facet_wrap( .~ Station)
 
-tonga_to_plot <- tonga_to_plot %>%
-  mutate(Pressure = round(Pressure)) %>% 
-  group_by(Pressure, Station) %>%
+tonga_bin <- tonga_to_plot %>%
+  mutate(bin = floor((Pressure/5) + 1)) %>% 
+  group_by(bin, Station) %>%
   summarise_at(.vars = c("F440", "F470"), .funs = list(mean)) %>%
-  mutate(ratio440_470 = F440 / F470) %>% 
+  mutate(ratio440_470 = F440 / F470) %>%
   ungroup()
+
+tonga_to_plot <- tonga_to_plot %>% mutate(bin = floor((Pressure/5) + 1)) %>%
+  select(bin, Station, Pressure) %>% 
+  left_join(tonga_bin, by = c("bin", "Station"))
 
 
 ggplot(tonga_to_plot)+
@@ -27,11 +31,20 @@ ggplot(tonga_to_plot)+
   scale_color_brewer(palette = "Set1")+
   ylim(-500,0)+
   theme_minimal()+
-  facet_wrap( .~ Station)
+  facet_wrap( .~ Station, nrow = 1)
 
 ggplot(tonga_to_plot)+
-  geom_path(aes(x = ratio440_470, y = -Pressure), size = 0.9)+
+  geom_path(aes(x = ratio440_470, y = -Pressure), colour = "#2b8cbe", size = 0.9)+
   geom_line(aes(x = 1, y = -Pressure), colour = "Red")+
   ylim(-500,0)+
   theme_minimal()+
   facet_wrap( .~ Station)
+
+ggplot(tonga_to_plot)+
+  geom_point(aes( x = ratio440_470, y = -Pressure, colour = Station), size = 1.5)+
+  scale_color_brewer(palette = "YlGnBu")+
+  ylim(-1000, -500)+
+  xlim(0.85,1.2)+
+  theme_dark()
+
+
