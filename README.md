@@ -1,1 +1,3 @@
-# multispectral_fluorescence
+# multispectral fluorescence
+
+This repo will be use to deal with data coming from multichannel fluorimeter. Work in progress...
