@@ -1,4 +1,5 @@
 library(tidyverse)
+library(zoo)
 
 #read data
 tonga_01 <- read_table2("Tonga/Data/TONGA_CTD_ECO1.txt")
@@ -56,25 +57,26 @@ ggplot(tonga_to_plot)+
 tonga_clean <- left_join(tonga_to_plot, select(tonga_to_plot_base, - Pressure), by = c("Station", "bin"))
 tonga_clean$cast <- substr(tonga_clean$Station, 14,16) #create a column to know if the profile is up or down
 
-ggplot(filter(tonga_clean, cast != "up"))+
-  geom_path(aes(x = F532, y = -Pressure, colour = "F532"), size = 0.9)+
+tonga_smooth <- tonga_clean %>% mutate(F440 = rollmean(F440, 20, fill = "NA"),
+                                       F470 = rollmean(F470, 20, fill = "NA"),
+                                       F532 = rollmean(F532, 20, fill = "NA"),
+                                       FCHL = rollmean(FCHL, 20, fill = "NA")) #moving average on data
+
+
+
+
+ggplot(filter(tonga_smooth, cast != "up"))+
   geom_path(aes(x = F440, y = -Pressure, colour = "F440"), size = 0.9)+
   geom_path(aes(x = F470, y = -Pressure, colour = "F470"), size = 0.9)+
   scale_color_brewer(palette = "Set1")+
-  ylim(-500,0)+
-  theme_minimal()+
+  ylim(-300,0)+
+  theme_bw()+
   facet_wrap( .~ Station, scales = "free_x", ncol = 4)
 
-
-ggplot(tonga_clean)+
+ggplot(filter(tonga_smooth, cast != "up"))+
   geom_path(aes(x = FCHL, y = -Pressure, colour = "FCHL"), size = 0.9)+
-  geom_path(aes(x = F440, y = -Pressure, colour = "F440"), size = 0.9)+
+  geom_path(aes(x = F470, y = -Pressure, colour = "F470"), size = 0.9)+
   scale_color_brewer(palette = "Set1")+
-  ylim(-500,0)+
-  theme_minimal()+
-  facet_wrap( .~ Station, scales = "free_x", ncol = 4)
-
-
-
-
-
+  ylim(-300,0)+
+  theme_bw()+
+  facet_wrap( .~ Station, ncol = 4)
