@@ -1,6 +1,6 @@
 library(tidyverse)
 library(zoo)
-
+library(patchwork)
 #read data
 tonga_01 <- read_table2("Tonga/Data/TONGA_CTD_ECO1.txt")
 tonga_02 <- read_table2("Tonga/Data/TONGA_CTD_ECO2.txt")
@@ -65,18 +65,19 @@ tonga_smooth <- tonga_clean %>% mutate(F440 = rollmean(F440, 20, fill = "NA"),
 
 
 
-ggplot(filter(tonga_smooth, cast != "up"))+
+ggplot(filter(tonga_smooth, cast != "up" & Station != "TONGA_CTD_011"))+
   geom_path(aes(x = F440, y = -Pressure, colour = "F440"), size = 0.9)+
   geom_path(aes(x = F470, y = -Pressure, colour = "F470"), size = 0.9)+
   scale_color_brewer(palette = "Set1")+
   ylim(-300,0)+
   theme_bw()+
-  facet_wrap( .~ Station, scales = "free_x", ncol = 4)
+  facet_wrap( .~ Station, ncol = 4)+
 
-ggplot(filter(tonga_smooth, cast != "up"))+
+ggplot(filter(tonga_smooth, cast != "up" & Station != "TONGA_CTD_011"))+
   geom_path(aes(x = FCHL, y = -Pressure, colour = "FCHL"), size = 0.9)+
   geom_path(aes(x = F470, y = -Pressure, colour = "F470"), size = 0.9)+
-  scale_color_brewer(palette = "Set1")+
+  scale_color_brewer(palette = "Dark2")+
   ylim(-300,0)+
   theme_bw()+
-  facet_wrap( .~ Station, ncol = 4)
+  facet_wrap( .~ Station, ncol = 4)+
+  plot_layout(guides = "collect")
