@@ -2,11 +2,16 @@ library(tidyverse)
 library(zoo)
 library(patchwork)
 #read data
-tonga_01 <- read_table2("Tonga/Data/TONGA_CTD_ECO1.txt")
-tonga_02 <- read_table2("Tonga/Data/TONGA_CTD_ECO2.txt")
+tonga_01 <- read_table2("Tonga/Data/eco/TONGA_CTD_ECO1.txt")
+tonga_02 <- read_table2("Tonga/Data/eco/TONGA_CTD_ECO2.txt")
+
+two_01 <- read_table2("Tonga/Data/eco/TONGA_TWO_ECO1.txt")
+two_02 <- read_table2("Tonga/Data/eco/TONGA_TWO_ECO2.txt")
 
 #make one file
 tonga <- bind_rows(tonga_01, tonga_02)
+two <- bind_rows(two_01, two_02)
+
 
 #remove missing data 
 tonga_to_plot <- filter(tonga, F440 > 0)
@@ -51,7 +56,7 @@ ggplot(tonga_to_plot)+
   geom_line(aes(x = 1, y = -Pressure), colour = "Red")+
   ylim(-500,0)+
   theme_minimal()+
-  facet_wrap( .~ Station, scales = "free_x")
+  facet_wrap( .~ Station, scales = "free")
 
 
 tonga_clean <- left_join(tonga_to_plot, select(tonga_to_plot_base, - Pressure), by = c("Station", "bin"))
