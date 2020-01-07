@@ -81,3 +81,10 @@ ggplot(filter(tonga_smooth, cast != "up" & Station != "TONGA_CTD_011"))+
   theme_bw()+
   facet_wrap( .~ Station, ncol = 4)+
   plot_layout(guides = "collect")
+
+tonga_smooth <- mutate(tonga_smooth, ratio440_470 = F440/F470)
+
+ggplot(filter(tonga_smooth, cast != "up" & Station != "TONGA_CTD_011"))+
+  geom_path(aes(x = ratio440_470, y = - Pressure))+
+  facet_wrap(.~Station, ncol = 4)+
+  ylim(-300, 0)
