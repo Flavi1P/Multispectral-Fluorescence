@@ -36,8 +36,8 @@ server <- function(input, output) {
   data_00 <- left_join(perle_00, ref_ctd0, by = c("Description" = "cyto"))
   
   dat <- reactive({
-    test <- select(data_00, pressure, Station, input$variable)
-    names(test) <- c("pressure", "Station", "variable")
+    test <- select(data_00, pressure, Station, longitude, latitude, input$variable)
+    names(test) <- c("pressure", "Station", "longitude", "latitude", "variable")
     return(test)})
     
   output$plot1 <- renderPlot({
@@ -49,10 +49,15 @@ server <- function(input, output) {
     scale_fill_viridis_d()})
 
   output$plot2 <- renderPlot({
+    t <- dat()
+    xmin <- min(t$longitude) - 5
+    xmax <- max(t$longitude) + 5
+    ymin <- min(t$latitude) - 5
+    ymax <- max(t$latitude) + 5
     ggplot(data_00)+
       geom_label(aes(x = longitude, y = latitude, label = Station, colour = as.factor(Station)))+
       geom_polygon(aes(x = long, y = lat, group = group), data = map)+
-      coord_quickmap(xlim = c(0,30), ylim = c(30,45))+
+      coord_quickmap(xlim = c(xmin,xmax), ylim = c(ymin,ymax))+
       scale_color_viridis_d()
   })
 }
