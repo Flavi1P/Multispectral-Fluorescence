@@ -8,8 +8,10 @@ ref_ctd0 <- read_excel("Perle/PHYTOFLOAT_190329.xlsx")
 ref_ctd0 <- clean_names(ref_ctd0)
 ref_ctd1 <- read_excel("Perle/PHYTOFLOAT_190329.xlsx", 
                        sheet = "PERLE1")
+ref_ctd2 <- read_excel("Perle/PHYTOFLOAT_190329.xlsx", sheet = "PERLE2")
+
 perle_01 <- read_excel("Perle/Perle1_juil2019_Communicated Data.xlsx")
-perle_02 <- read_excel("Perle/Perle0_juil2018_CYTO.xlsx")
+perle_02 <- read_excel("Perle/Result_Perle2_CommunicatedData-Cyto.xlsx")
 perle_00 <- read_excel("Perle/Perle0_juil2018_CYTO.xlsx")
 
 colnames(perle_00) #la ref est dans la colonne cyto de ref_ctd0
@@ -65,3 +67,24 @@ ggplot(data_01,aes(x = as.factor(- pressure), y = Nano_Chl, fill = station))+
   coord_flip()+
   facet_wrap(.~ station)+
   scale_fill_viridis_d()
+
+ref_ctd2 <- clean_names(ref_ctd2)
+ref_ctd2$cyto_dupli <- substr(ref_ctd2$cyto_dupli, 1, 9)
+
+perle_02$Description <- gsub("-", "_", perle_02$Description)
+
+data_02 <- left_join(perle_02, ref_ctd2, by = c("Description"= "cyto_dupli"))
+data_02$station <- substr(data_02$Description, 5, 6)
+
+ggplot(data_02)+
+  geom_text(aes(x = longitude, y = latitude, label = station, colour = station))+
+  geom_polygon(aes(x = long, y = lat, group = group), data = map)+
+  coord_quickmap(xlim = c(15, 35), ylim = c(30,40))+
+  scale_color_viridis_d()
+
+ggplot(data_02,aes(x = as.factor(- pressure), y = Nano_Chl, fill = station))+
+  geom_col()+
+  coord_flip()+
+  facet_wrap(.~ station)+
+  scale_fill_viridis_d()
+  
