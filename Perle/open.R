@@ -38,3 +38,30 @@ ggplot(data_00,aes(x = as.factor(- pressure), y = Nano_Chl, fill = as.factor(Sta
   facet_wrap(.~ Station, scales = "free_y")+
   scale_fill_viridis_d()
 
+ref_ctd1 <- clean_names(ref_ctd1)
+
+ref_ctd1$cyto_dupli <- substr(ref_ctd1$cyto_dupli, 1, 9)
+perle_01$Description <- gsub("-", "_", perle_01$Description)
+perle_01$Description <- gsub("^(P1_)([0-9]{1}_.{1,20})$", "\\100\\2" , perle_01$Description)
+perle_01$Description <- gsub("^(P1_)([0-9]{2}_.{1,20})$", "\\10\\2" , perle_01$Description)
+perle_01$Description <- gsub("^(P1_[0-9]{3}_)(.{2})$", "\\10\\2" , perle_01$Description)
+perle_01$Description <- gsub("^(P1_[0-9]{3}_)(.{7})$", "\\10\\2" , perle_01$Description)
+
+
+perle_01 <- separate(perle_01, Description, c("Description", "rate"), "_Rate")
+perle_01$code <- substr(perle_01$Description, 1, 9)
+
+data_01 <- left_join(perle_01, ref_ctd1, by = c("code" = "cyto_dupli"))
+data_01$station <- substr(data_01$code, 5, 6)
+
+ggplot(data_01)+
+  geom_text(aes(x = longitude, y = latitude, label = station, colour = station))+
+  geom_polygon(aes(x = long, y = lat, group = group), data = map)+
+  coord_quickmap(xlim = c(20, 35), ylim = c(30,40))+
+  scale_color_viridis_d()
+  
+ggplot(data_01,aes(x = as.factor(- pressure), y = Nano_Chl, fill = station))+
+  geom_col()+
+  coord_flip()+
+  facet_wrap(.~ station)+
+  scale_fill_viridis_d()
