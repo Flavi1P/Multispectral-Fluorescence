@@ -15,8 +15,8 @@ ui <- dashboardPage(
       box(title = "Variable",
           selectInput("variable", "Variable",
                       choices = c("Prochloroccoccus par mL" = "Proc/mL", "Synechococcus par mL" = "Syn/mL", "Prochlorococcus (mg)" = "Proc_Chl", "Synechococcus (mg)" = "Syn_Chl")))
-    )
-    fluiRow(
+    ),
+    fluidRow(
       box(title = "Map", plotOutput("plot2", height = 500))
     )
   )
@@ -43,6 +43,7 @@ server <- function(input, output) {
   output$plot1 <- renderPlot({
     ggplot(dat(), aes(x = as.factor(- pressure), y = variable, fill = as.factor(Station)))+
     geom_col()+
+    xlab("Depth")+
     coord_flip()+
     facet_wrap(.~ Station, scales = "free_y")+
     scale_fill_viridis_d()})
