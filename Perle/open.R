@@ -87,4 +87,9 @@ ggplot(data_02,aes(x = as.factor(- pressure), y = Nano_Chl, fill = station))+
   coord_flip()+
   facet_wrap(.~ station)+
   scale_fill_viridis_d()
-  
+
+#save df as csv files ####
+# write_csv(data_00, "Perle/Process/perle0.csv")
+# write_csv(data_01, "Perle/Process/perle1.csv")
+# write_csv(data_02, "Perle/Process/perle2.csv")
+
