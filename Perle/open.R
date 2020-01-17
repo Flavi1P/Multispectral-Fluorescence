@@ -28,6 +28,8 @@ ref_ctd0$cyto <- substr(ref_ctd0$cyto, 1, 9)
 
 data_00 <- left_join(perle_00, ref_ctd0, by = c("Description" = "cyto"))
 
+data_00$station <- substr(data_00$Description, 4, 6)
+
 ggplot(data_00)+
   geom_label(aes(x = longitude, y = latitude, label = Station, colour = as.factor(Station)))+
   geom_polygon(aes(x = long, y = lat, group = group), data = map)+
@@ -55,6 +57,7 @@ perle_01$code <- substr(perle_01$Description, 1, 9)
 
 data_01 <- left_join(perle_01, ref_ctd1, by = c("code" = "cyto_dupli"))
 data_01$station <- substr(data_01$code, 5, 6)
+data_01$'Nano/mL' <- as.numeric(data_01$'Nano/mL')
 
 ggplot(data_01)+
   geom_text(aes(x = longitude, y = latitude, label = station, colour = station))+
@@ -87,6 +90,8 @@ ggplot(data_02,aes(x = as.factor(- pressure), y = Nano_Chl, fill = station))+
   coord_flip()+
   facet_wrap(.~ station)+
   scale_fill_viridis_d()
+
+data_02 <- filter(data_02, longitude != "NA")
 
 #save df as csv files ####
 # write_csv(data_00, "Perle/Process/perle0.csv")
