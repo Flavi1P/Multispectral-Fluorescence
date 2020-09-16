@@ -1,0 +1,11 @@
+datcnv    /iC:\SBEMOOSE\%1\raw\%2.hex /cC:\SBEMOOSE\%1\raw\%2.xmlcon /oC:\SBEMOOSE\%1\cnv /pC:\SBEMOOSE\DataProcessing\procnv.psa    /f%2
+@wildedit  /iC:\SBEMOOSE\%1\cnv\%2.cnv                             /oC:\SBEMOOSE\%1\cnv /pC:\SBEMOOSE\DataProcessing\prowedit.psa  /f%2
+@wildedit  /iC:\SBEMOOSE\%1\cnv\%2.cnv                             /oC:\SBEMOOSE\%1\cnv /pC:\SBEMOOSE\DataProcessing\prowedit.psa  /f%2
+filter    /iC:\SBEMOOSE\%1\cnv\%2.cnv                             /oC:\SBEMOOSE\%1\cnv /pC:\SBEMOOSE\DataProcessing\profilter.psa /f%2
+alignCTD  /iC:\SBEMOOSE\%1\cnv\%2.cnv                             /oC:\SBEMOOSE\%1\cnv /pC:\SBEMOOSE\DataProcessing\proalg.psa    /f%2
+celltm    /iC:\SBEMOOSE\%1\cnv\%2.cnv                             /oC:\SBEMOOSE\%1\cnv /pC:\SBEMOOSE\DataProcessing\proctm.psa    /f%2
+@loopedit  /iC:\SBEMOOSE\%1\cnv\%2.cnv                             /oC:\SBEMOOSE\%1\cnv /pC:\SBEMOOSE\DataProcessing\proloop.psa   /f%2
+derive    /iC:\SBEMOOSE\%1\cnv\%2.cnv /cC:\SBEMOOSE\%1\raw\%2.xmlcon /oC:\SBEMOOSE\%1\cnv /pC:\SBEMOOSE\DataProcessing\proder.psa    /f%2
+binavg    /iC:\SBEMOOSE\%1\cnv\%2.cnv                             /oC:\SBEMOOSE\%1\cnv /pC:\SBEMOOSE\DataProcessing\proavg.psa    /f%2
+asciiout  /iC:\SBEMOOSE\%1\cnv\%2.cnv                             /oC:\SBEMOOSE\%1\asc /pC:\SBEMOOSE\DataProcessing\proasc.psa    /f%2
+@bottlesum /iC:\SBEMOOSE\%1\cnv\%2.ros /cC:\SBEMOOSE\%1\raw\%2.xmlcon /oC:\SBEMOOSE\%1\btl /pC:\SBEMOOSE\DataProcessing\prorossum.psa    /f%2
