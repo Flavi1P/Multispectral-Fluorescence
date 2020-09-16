@@ -70,7 +70,7 @@ tonga_smooth <- tonga_clean %>% mutate(F440 = rollmean(F440, 20, fill = "NA"),
 
 
 
-ggplot(filter(tonga_smooth, cast != "up" & Station != "TONGA_CTD_011"))+
+ggplot(filter(tonga_smooth, cast == "" & Station != "TONGA_CTD_011"))+
   geom_path(aes(x = F440, y = -Pressure, colour = "F440"), size = 0.9)+
   geom_path(aes(x = F470, y = -Pressure, colour = "F470"), size = 0.9)+
   scale_color_brewer(palette = "Set1")+
@@ -78,7 +78,7 @@ ggplot(filter(tonga_smooth, cast != "up" & Station != "TONGA_CTD_011"))+
   theme_bw()+
   facet_wrap( .~ Station, ncol = 4)+
 
-ggplot(filter(tonga_smooth, cast != "up" & Station != "TONGA_CTD_011"))+
+ggplot(filter(tonga_smooth, cast == "" & Station != "TONGA_CTD_011"))+
   geom_path(aes(x = FCHL, y = -Pressure, colour = "FCHL"), size = 0.9)+
   geom_path(aes(x = F470, y = -Pressure, colour = "F470"), size = 0.9)+
   scale_color_brewer(palette = "Dark2")+
@@ -87,9 +87,20 @@ ggplot(filter(tonga_smooth, cast != "up" & Station != "TONGA_CTD_011"))+
   facet_wrap( .~ Station, ncol = 4)+
   plot_layout(guides = "collect")
 
+  ggplot(filter(tonga_smooth, cast != "up" & Station != "TONGA_CTD_011"))+
+  geom_path(aes(x = F440, y = -Pressure, colour = "F440"), size = 0.9)+
+  geom_path(aes(x = F470, y = -Pressure, colour = "F470"), size = 0.9)+
+  geom_path(aes(x = F532, y = -Pressure, colour = "F532"), size = 0.9)+
+  scale_color_brewer(palette = "Set1")+
+  ylim(-300,0)+
+  theme_bw()+
+  facet_wrap( .~ Station, ncol = 4)+
+  xlim(0,150)
+
 tonga_smooth <- mutate(tonga_smooth, ratio440_470 = F440/F470)
 
 ggplot(filter(tonga_smooth, cast != "up" & Station != "TONGA_CTD_011"))+
   geom_path(aes(x = ratio440_470, y = - Pressure))+
   facet_wrap(.~Station, ncol = 4)+
   ylim(-300, 0)
+    

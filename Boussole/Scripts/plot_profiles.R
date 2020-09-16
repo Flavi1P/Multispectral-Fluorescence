@@ -1,11 +1,18 @@
 library(tidyverse)
+library(patchwork)
 
 bouss02 <- read_csv('Boussole/Output/Data/Bouss_09_20_2')
 bouss03 <- read_csv('Boussole/Output/Data/Bouss_09_20_3')
 
 ggplot(bouss03)+
-  geom_path(aes(x = crov, y = -pres, colour = 'crover'))+
-  geom_path(aes(x = cstarAt, y = - pres, colour = 'cstar'))
+  geom_path(aes(x = crov, y = -pres, colour = 'Crover'))+
+  geom_path(aes(x = cstarAt, y = - pres, colour = 'Cstar'))+
+  xlab('Beam attenuation')+
+  scale_color_brewer(palette = 'Set1', name = 'sensor')+
+  scale_x_continuous(position = 'top')+
+  theme_classic()
+
+ggsave('Boussole/Output/Plots/Beam_attenuation_profile', device = 'png')
 
 ggplot(bouss03)+
   geom_path(aes(y = -pres, x = fluo_440, colour = '440'))+
@@ -20,6 +27,20 @@ library(zoo)
 bouss03$fluo_532_smooth <- rollmean(bouss03$fluo_532, 10, fill = c(55, 55, 55)) - mean(bouss03$fluo_532[bouss03$pres > 200 & bouss03$pres < 250], na.rm = TRUE)
 bouss03$fluo_440_smooth <- rollmean(bouss03$fluo_440, 5, fill = c(55, 55, 55)) - mean(bouss03$fluo_440[bouss03$pres > 200 & bouss03$pres < 250], na.rm = TRUE)
 bouss03$fluo_470_smooth <- rollmean(bouss03$fluo_470, 5, fill = c(55, 55, 55)) - mean(bouss03$fluo_470[bouss03$pres > 200 & bouss03$pres < 250], na.rm = TRUE)
+
+bouss03$cstarAt <- bouss03$cstarAt - mean(bouss03$cstarAt[bouss03$pres > 390 & bouss03$pres < 400], na.rm = TRUE)
+bouss03$crov <- bouss03$crov - mean(bouss03$crov[bouss03$pres > 390 & bouss03$pres < 400], na.rm = TRUE)
+
+ggplot(bouss03)+
+  geom_path(aes(x = crov, y = -pres, colour = 'Crover'))+
+  geom_path(aes(x = cstarAt, y = - pres, colour = 'Cstar'))+
+  xlab('Beam attenuation')+
+  scale_color_brewer(palette = 'Set1', name = 'sensor')+
+  scale_x_continuous(position = 'top')+
+  theme_classic()
+
+ggsave('Boussole/Output/Plots/attenuation_offset.png', device = 'png')
+
 
 
 ggplot(bouss03)+
@@ -95,6 +116,15 @@ bouss02 <- mutate(bouss02, zone = case_when(pres < 20 ~ 'surf' ,
                   norm_470 = fluo_470_smooth / max(fluo_470_smooth, na.rm = TRUE),
                   norm_532 = fluo_532_smooth / max(fluo_532_smooth, na.rm = TRUE))
 
+bouss03 <- mutate(bouss03, zone = case_when(pres < 20 ~ 'surf' ,
+                                            pres >= 20 & pres < 41 ~ 'above',
+                                            pres >=41 & pres < 52 ~ 'DCM',
+                                            pres >= 52 & pres < 70 ~ 'below',
+                                            pres > 70 ~ 'depth'),
+                  norm_440 = fluo_440_smooth / max(fluo_440_smooth, na.rm = TRUE),
+                  norm_470 = fluo_470_smooth / max(fluo_470_smooth, na.rm = TRUE),
+                  norm_532 = fluo_532_smooth / max(fluo_532_smooth, na.rm = TRUE))
+
 
 
 ggplot(bouss02)+
@@ -102,4 +132,19 @@ ggplot(bouss02)+
   geom_path(aes(y = -pres, x =norm_470, colour = '470'), size = 1)+
   geom_path(aes(y = -pres, x = norm_532, colour = '532'), size = 1)+
   xlim(-0.1, 1)+
-  xlab('Normalised fluo')
+  ylim(-100,0)+
+  xlab('Normalised fluo')+
+  ggtitle('Cast 02')+
+
+ggplot(bouss03)+
+  geom_path(aes(y = -pres, x = norm_440, colour = '440'), size = 1)+
+  geom_path(aes(y = -pres, x =norm_470, colour = '470'), size = 1)+
+  geom_path(aes(y = -pres, x = norm_532, colour = '532'), size = 1)+
+  xlim(-0.1, 1)+
+  xlab('Normalised fluo')+
+  ggtitle('Cast 03')+
+  ylim(-100,0)+
+  plot_layout(guides = 'collect')
+
+ggsave('Boussole/Output/Plots/normalised_fluo', device = 'jpeg')
+
