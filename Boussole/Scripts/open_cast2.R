@@ -11,7 +11,7 @@ names(ctd) <- c('pres', 'time', 'temp', 'temp2',
 
 ctd_clean <- ctd[1:min(which(ctd$pres > 400)),] 
 ggplot(ctd_clean)+
-  geom_path(aes(x = fluo_chl, y = -pres))
+  geom_path(aes(x = cstarTr, y = -pres))
 
 origin <- 13*3600 + 16 * 60 + 43
 ctd_clean$time <- seconds_to_period(origin + ctd_clean$time)

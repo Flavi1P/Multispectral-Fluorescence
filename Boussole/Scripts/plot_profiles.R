@@ -12,7 +12,7 @@ ggplot(bouss03)+
   scale_x_continuous(position = 'top')+
   theme_classic()
 
-ggsave('Boussole/Output/Plots/Beam_attenuation_profile', device = 'png')
+#ggsave('Boussole/Output/Plots/Beam_attenuation_profile', device = 'png')
 
 ggplot(bouss03)+
   geom_path(aes(y = -pres, x = fluo_440, colour = '440'))+
@@ -146,5 +146,15 @@ ggplot(bouss03)+
   ylim(-100,0)+
   plot_layout(guides = 'collect')
 
-ggsave('Boussole/Output/Plots/normalised_fluo', device = 'jpeg')
+#ggsave('Boussole/Output/Plots/normalised_fluo', device = 'jpeg')
 
+coeff1 <- max(bouss02$bb700, na.rm = TRUE)/max(bouss02$cstarat, na.rm = TRUE)
+coeff2 <- max(bouss02$fluo_470, na.rm = TRUE)/max(bouss02$cstarat, na.rm = TRUE)
+
+ggplot(bouss02)+
+  geom_path(aes(x = cstarat, y = -pres, colour = 'Attenuation'))+
+  geom_path(aes(x = bb700/coeff1, y = -pres, colour = 'bb700' ))+
+  geom_path(aes(x = fluo_470/coeff2, y = -pres, colour = 'fluo470'))+
+  scale_x_continuous(name = 'Beam attenuation', sec.axis = sec_axis(~. * coeff1, name = 'bb700'))+
+  theme_classic()+
+  scale_color_brewer(palette = 'Set1')

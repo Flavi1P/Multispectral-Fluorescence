@@ -30,7 +30,7 @@ echo_3x1m <- echo[mf,]
 flbb <- echo[flbb,]
 
 echo_3x1m <- select(echo_3x1m, -X6, -X7, -X8, -X10, -X12)
-flbb <- select(flbb, -X6, -X7, -X8, -X12)
+flbb <- select(flbb, -X6, -X7, -X8,-X10, -X12)
 
 names(echo_3x1m) <- c('month', 'day_name', 'day', 'time', 'year', 'x440', 'x470', 'x532', 'jsp')
 names(flbb) <- c('month', 'day_name', 'day', 'time', 'year', 'fluo470', 'bb700', 'bb460', 'jsp')
@@ -54,6 +54,8 @@ new_sec <- c(min(round(ctd_clean$second)): max(round(ctd_clean$second)))
 
 fluo_ctd <- approx(ctd_clean$second,ctd_clean$fluo_chl, xout = new_sec)
 
+cstarat <- approx(ctd_clean$second, ctd_clean$cstarAt, xout = new_sec)
+
 depth <- approx(ctd_clean$second,ctd_clean$pres, xout = new_sec)
 
 fluo_440 <- approx(echo_3x1m$second,echo_3x1m$x440, xout = new_sec)
@@ -62,10 +64,14 @@ fluo_532 <- approx(echo_3x1m$second,echo_3x1m$x532, xout = new_sec)
 
 fluo_flbb <- approx(flbb$second, flbb$fluo470, xout = new_sec)
 
+bb700 <- approx(flbb$second, flbb$bb700, xout = new_sec)
+bb460 <- approx(flbb$second, flbb$bb460, xout = new_sec)
+
 matched <- tibble('pres' = depth$y, 'second' = new_sec,
                   'fluo_ctd' = fluo_ctd$y, 'fluo_440' = fluo_440$y,
                   'fluo_470' = fluo_470$y, 'fluo_532' = fluo_532$y,
-                  'fluo_flbb' = fluo_flbb$y)
+                  'fluo_flbb' = fluo_flbb$y, 'bb700' = bb700$y,
+                  'bb460' = bb460$y, 'cstarat' = cstarat$y)
 
 write_csv(matched, 'Boussole/Output/Data/Bouss_09_20_2')
 
