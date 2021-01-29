@@ -1,79 +1,83 @@
 library(tidyverse)
 library(lubridate)
+library(zoo)
 
-ctd <- read_table2("Boussole/Data/SBEMOOSE/Work/cnv/Bous222_02.cnv", 
-                          col_names = FALSE, skip = 340)
+first <- readLines("Boussole/Data/SBEMOOSE/Work/cnv/Test1.cnv")
+start_line <- grep('END', first)
 
-names(ctd) <- c('pres', 'time', 'temp', 'temp2',
-                'conduct', 'conduct2', 'oxraw', 'v2', 'fluo_chl',
-                'v3', 'cstarTr', 'cstarAt', 'ox_ml_l', 'ox_mm_kg', 'potemp',
-                'potemp2', 'sal', 'sal2', 'sigma', 'sigma2', 'flag')
+ctd <- read_table2("Boussole/Data/SBEMOOSE/Work/cnv/Test1.cnv", 
+                          col_names = FALSE, skip = start_line)
 
-ctd_clean <- ctd[1:min(which(ctd$pres > 99)),] 
-ggplot(ctd_clean)+
-  geom_path(aes(x = upoly0, y = -pres))+
-  geom_path(aes(x = upoly1, y = -pres))
+names(ctd) <- c('pres', 'time', 'temp', 'conductivity',
+                'sbeox0v', 'fluo_chl', 'upoly0', 'upoly1', 'potemp',
+                'sal00', 'sigma', 'sbeox_ml', 'sbeox_mm', 'flag')
 
-  origin <- 12*3600 + 12 * 60 + 21
+#ctd_clean <- ctd[min(which(ctd$pres == max(ctd$pres))):max(which(ctd$pres == min(ctd$pres))),] #for asc
+ctd_clean <- ctd[1:min(which(ctd$pres == max(ctd$pres))),] #for desc
+
+
+
+origin <- 9*3600 + 0* 60 + 13
 ctd_clean$time <- seconds_to_period(origin + ctd_clean$time)
 
+ggplot(ctd_clean)+
+  geom_path(aes(x = fluo_chl, y = -pres))
 
-echo <- read_table2("Boussole/Data/raw/bouss120920_02.txt", 
-                              col_names = FALSE)
+echo <- read_table2("Boussole/Data/raw/log_rad_1.txt", 
+                              col_names = FALSE, skip = 3)
 
+
+echo$X4 <- hms(echo$X4)
+#echo$X4 <- echo$X4 + 12
+
+ctd_clean$second <- as.numeric(seconds(ctd_clean$time))
+echo$second <- as.numeric(seconds(echo$X4))
+
+echo <- filter(echo, second > min(round(ctd_clean$second)) & second < max(round(ctd_clean$second)))
+pres_eco <- approx(ctd_clean$second, ctd_clean$pres, xout = echo$second)
+
+echo$pres <- pres_eco$y
 find <- apply( echo, 1, paste, collapse = "-" )
 
 mf <- grep(440, find)
 flbb <- grep(695, find)
+ecov2 <- grep('ECOV2', find)
 
 echo_3x1m <- echo[mf,]
 flbb <- echo[flbb,]
+ecov2 <- echo[ecov2,]
 
-echo_3x1m <- select(echo_3x1m, -X6, -X7, -X8, -X10, -X12)
-flbb <- select(flbb, -X6, -X7, -X8,-X10, -X12)
-
-names(echo_3x1m) <- c('month', 'day_name', 'day', 'time', 'year', 'x440', 'x470', 'x532', 'jsp')
-names(flbb) <- c('month', 'day_name', 'day', 'time', 'year', 'fluo470', 'bb700', 'bb460', 'jsp')
-
-echo_3x1m$time <- hms(echo_3x1m$time)
-flbb$time <- hms(flbb$time)
+echo_3x1m <- select(echo_3x1m, -X6, -X7, -X8, -X10, -X12, - c(X15:X24))
+flbb <- select(flbb, -X6, -X7, -X8,-X10, -X12, - c(X15:X24))
 
 
+names(echo_3x1m) <- c('month', 'day_name', 'day', 'time', 'year', 'fluo_440', 'fluo_470', 'fluo_532', 'echo3x', 'second', 'pres')
+names(flbb) <- c('month', 'day_name', 'day', 'time', 'year', 'fluo_flbb', 'bb700', 'cdom', 'echov1', 'second', 'pres')
+
+ecov2names <- c('FrameSync,Counter,
+CHL HiGain(Counts),CHL LoGain(Counts),CHL LTC(Counts),CHL Raw(Counts),
+Beta-700 HiGain(Counts),Beta-700 LoGain(Counts),Beta-700 LTC(Counts),Beta-700 Raw(Counts),
+CHL2 HiGain(Counts),CHL2 LoGain(Counts),CHL2 LTC(Counts),CHL2 Raw(Counts),
+FDOM HiGain(Counts),FDOM LoGain(Counts),FDOM LTC(Counts),FDOM Raw(Counts),
+vMain(Volts)') %>% strsplit(',') %>% unlist()
+
+names(ecov2) <- c('month', 'day_name', 'day', 'time', 'year', ecov2names, 'second', 'pres')
+
+multiplex <- full_join(flbb, echo_3x1m) %>% full_join(ecov2) %>% janitor::clean_names()
+multiplex$time <- hms(multiplex$time)
+multiplex <- multiplex[which(!is.na(multiplex$time)),]
 
 
-ctd_clean$second <- as.numeric(seconds(ctd_clean$time))
-echo_3x1m$second <- as.numeric(seconds(echo_3x1m$time))
-flbb$second <- as.numeric(seconds(flbb$time))
 
+full_df <- bind_rows(ctd_clean, multiplex)
 
-# echo_3x1m <- filter(echo_3x1m, second > 43973)
-# flbb <- filter(flbb, second > 43973)
+full_df$time <- as.POSIXct(full_df$time, origin = '2020-09-12', tz = 'UTC')
+full_df$time <- format(full_df$time, '%H:%M:%S')
 
+ggplot(filter(full_df, fluo_440 < 200))+
+  geom_point(aes(x = chl_hi_gain_counts, y = -pres))
 
-new_sec <- c(min(round(ctd_clean$second)): max(round(ctd_clean$second)))
-
-fluo_ctd <- approx(ctd_clean$second,ctd_clean$fluo_chl, xout = new_sec)
-
-cstarat <- approx(ctd_clean$second, ctd_clean$cstarAt, xout = new_sec)
-
-depth <- approx(ctd_clean$second,ctd_clean$pres, xout = new_sec)
-
-fluo_440 <- approx(echo_3x1m$second,echo_3x1m$x440, xout = new_sec)
-fluo_470 <- approx(echo_3x1m$second,echo_3x1m$x470, xout = new_sec)
-fluo_532 <- approx(echo_3x1m$second,echo_3x1m$x532, xout = new_sec)
-
-fluo_flbb <- approx(flbb$second, flbb$fluo470, xout = new_sec)
-
-bb700 <- approx(flbb$second, flbb$bb700, xout = new_sec)
-bb460 <- approx(flbb$second, flbb$bb460, xout = new_sec)
-
-matched <- tibble('pres' = depth$y, 'second' = new_sec,
-                  'fluo_ctd' = fluo_ctd$y, 'fluo_440' = fluo_440$y,
-                  'fluo_470' = fluo_470$y, 'fluo_532' = fluo_532$y,
-                  'fluo_flbb' = fluo_flbb$y, 'bb700' = bb700$y,
-                  'bb460' = bb460$y, 'cstarat' = cstarat$y)
-
-write_csv(matched, 'Boussole/Output/Data/Bouss_09_20_2')
+write_csv(full_df, 'Boussole/Output/Data/rad_desc_1_28012021.csv')
 
 
 
