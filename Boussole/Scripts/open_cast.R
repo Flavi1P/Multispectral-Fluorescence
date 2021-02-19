@@ -3,10 +3,10 @@ library(lubridate)
 library(zoo)
 library(patchwork)
 
-first <- readLines("Boussole/Data/SBEMOOSE/Work/cnv/Test1.cnv")
+first <- readLines("Boussole/Data/SBEMOOSE/Work/cnv/test02.cnv")
 start_line <- grep('END', first)
 
-ctd <- read_table2("Boussole/Data/SBEMOOSE/Work/cnv/Test1.cnv", 
+ctd <- read_table2("Boussole/Data/SBEMOOSE/Work/cnv/test02.cnv", 
                           col_names = FALSE, skip = start_line)
 
 names(ctd) <- c('pres', 'time', 'temp', 'conductivity',
@@ -18,15 +18,15 @@ ctd_clean <- ctd[min(which(ctd$pres == max(ctd$pres))):max(which(ctd$pres == min
 
 
 
-origin <- 9*3600 + 0* 60 + 13
+origin <- 10*3600 + 30* 60 + 46
 ctd_clean$time <- seconds_to_period(origin + ctd_clean$time)
 
 ctd_clean <- ctd_clean[1:min(which(ctd_clean$pres < 2)),]
 
 ggplot(ctd_clean)+
   geom_path(aes(x = fluo_chl, y = -pres))
-echo <- read_table2("Boussole/Data/raw/log_rad_1.txt", 
-                              col_names = FALSE, skip = 3)
+echo <- read_table2("Boussole/Data/raw/log_rad_2.txt", 
+                              col_names = FALSE, skip = 2)
 
 
 echo$X4 <- hms(echo$X4)
@@ -76,16 +76,16 @@ full_df <- bind_rows(ctd_clean, multiplex)
 full_df$time <- as.POSIXct(full_df$time, origin = '2021-28-01', tz = 'UTC')
 full_df$time <- format(full_df$time, '%H:%M:%S')
 
-write_csv(full_df, 'Boussole/Output/Data/rad_asc_1_28012021.csv')
+write_csv(full_df, 'Boussole/Output/Data/rad_asc_2_28012021.csv')
 
 
 full_df %>% select(pres, fluo_440, fluo_470, fluo_532) %>% 
   pivot_longer(2:4, names_to = 'wl', values_to = 'counts') %>% ggplot()+
   geom_point(aes(x = counts, y = -pres, colour = wl), alpha = 0.7)+
-  xlim(25,200)+
+  xlim(25,110)+
   ggtitle('3X1M fluo')
 
-ggsave('Boussole/Output/Plots/3x1m_rade_asc_1.png')
+ggsave('Boussole/Output/Plots/3x1m_rade_asc_2.png')
 
 
 flbb <- full_df %>% select(pres, fluo_flbb, bb700, cdom) %>%
@@ -101,7 +101,7 @@ ggplot(filter(flbb,variable == 'bb700', val < 20000))+
   scale_color_viridis_d()+
   ggtitle('flbb bb700')
 
-ggsave('Boussole/Output/Plots/flbb_rade_asc_1.png')
+ggsave('Boussole/Output/Plots/flbb_rade_asc_2.png')
 
 
 ecov2 <- full_df %>% select(pres, chl_hi_gain_counts, chl2_hi_gain_counts, beta_700_hi_gain_counts, fdom_hi_gain_counts) %>% 
@@ -115,4 +115,4 @@ ggplot(filter(ecov2, !variable %in% c('chl_hi_gain_counts', 'chl2_hi_gain_counts
   geom_point(aes(x = val, y = - pres, colour = variable))+
   ggtitle('ECOV2 bb700 + fdom profiles')
 
-ggsave('Boussole/Output/Plots/ecov2_rade_asc_1.png')
+ggsave('Boussole/Output/Plots/ecov2_rade_asc_2.png')
