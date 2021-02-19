@@ -2,35 +2,45 @@ library(tidyverse)
 library(lubridate)
 library(zoo)
 library(patchwork)
+library(stringr)
 
-first <- readLines("Boussole/Data/SBEMOOSE/Work/cnv/test02.cnv")
+first <- readLines("Boussole/Data/SBEMOOSE/Work/cnv/bous227_02.cnv")
 start_line <- grep('END', first)
 
-ctd <- read_table2("Boussole/Data/SBEMOOSE/Work/cnv/test02.cnv", 
+hour_line <- first[grep('start_time', first)]
+start_time <- str_extract(hour_line, '[0-9]{2}:[0-9]{2}:[0-9]{2}')
+
+hr <- as.numeric(substr(start_time, 1,2))
+mn <- as.numeric(substr(start_time, 4,5))
+sc <- as.numeric(substr(start_time, 7,8))
+
+
+ctd <- read_table2("Boussole/Data/SBEMOOSE/Work/cnv/bous227_02.cnv", 
                           col_names = FALSE, skip = start_line)
 
 names(ctd) <- c('pres', 'time', 'temp', 'conductivity',
                 'sbeox0v', 'fluo_chl', 'upoly0', 'upoly1', 'potemp',
                 'sal00', 'sigma', 'sbeox_ml', 'sbeox_mm', 'flag')
 
-ctd_clean <- ctd[min(which(ctd$pres == max(ctd$pres))):max(which(ctd$pres == min(ctd$pres))),] #for asc
-#ctd_clean <- ctd[1:min(which(ctd$pres == max(ctd$pres))),] #for desc
+#ctd_clean <- ctd[min(which(ctd$pres == max(ctd$pres))):max(which(ctd$pres == min(ctd$pres))),] #for asc
+ctd_clean <- ctd[1:min(which(ctd$pres == max(ctd$pres))),] #for desc
 
 
 
-origin <- 10*3600 + 30* 60 + 46
+origin <- hr*3600 + mn* 60 + sc
 ctd_clean$time <- seconds_to_period(origin + ctd_clean$time)
 
 ctd_clean <- ctd_clean[1:min(which(ctd_clean$pres < 2)),]
 
 ggplot(ctd_clean)+
-  geom_path(aes(x = fluo_chl, y = -pres))
-echo <- read_table2("Boussole/Data/raw/log_rad_2.txt", 
+  geom_path(aes(x = fluo_chl, y = -pres))+
+  xlim(0,1.5)
+echo <- read_table2("Boussole/Data/raw/B227_cast1.txt", 
                               col_names = FALSE, skip = 2)
 
 
 echo$X4 <- hms(echo$X4)
-#echo$X4 <- echo$X4 + 12
+echo$X4 <- echo$X4 - 15
 
 ctd_clean$second <- as.numeric(seconds(ctd_clean$time))
 echo$second <- as.numeric(seconds(echo$X4))
@@ -76,7 +86,7 @@ full_df <- bind_rows(ctd_clean, multiplex)
 full_df$time <- as.POSIXct(full_df$time, origin = '2021-28-01', tz = 'UTC')
 full_df$time <- format(full_df$time, '%H:%M:%S')
 
-write_csv(full_df, 'Boussole/Output/Data/rad_asc_2_28012021.csv')
+write_csv(full_df, 'Boussole/Output/Data/b227_asc1.csv')
 
 
 full_df %>% select(pres, fluo_440, fluo_470, fluo_532) %>% 
@@ -85,7 +95,7 @@ full_df %>% select(pres, fluo_440, fluo_470, fluo_532) %>%
   xlim(25,110)+
   ggtitle('3X1M fluo')
 
-ggsave('Boussole/Output/Plots/3x1m_rade_asc_2.png')
+ggsave('Boussole/Output/Plots/b227_3x1m_asc1.png')
 
 
 flbb <- full_df %>% select(pres, fluo_flbb, bb700, cdom) %>%
@@ -101,7 +111,7 @@ ggplot(filter(flbb,variable == 'bb700', val < 20000))+
   scale_color_viridis_d()+
   ggtitle('flbb bb700')
 
-ggsave('Boussole/Output/Plots/flbb_rade_asc_2.png')
+ggsave('Boussole/Output/Plots/b227_flbb_asc1.png')
 
 
 ecov2 <- full_df %>% select(pres, chl_hi_gain_counts, chl2_hi_gain_counts, beta_700_hi_gain_counts, fdom_hi_gain_counts) %>% 
@@ -115,4 +125,4 @@ ggplot(filter(ecov2, !variable %in% c('chl_hi_gain_counts', 'chl2_hi_gain_counts
   geom_point(aes(x = val, y = - pres, colour = variable))+
   ggtitle('ECOV2 bb700 + fdom profiles')
 
-ggsave('Boussole/Output/Plots/ecov2_rade_asc_2.png')
+ggsave('Boussole/Output/Plots/b227_ecov2_asc1.png')
