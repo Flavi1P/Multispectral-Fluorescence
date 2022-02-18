@@ -31,6 +31,7 @@ bouss03$fluo_470_smooth <- rollmean(bouss03$fluo_470, 5, fill = c(55, 55, 55)) -
 bouss03$cstarAt <- bouss03$cstarAt - mean(bouss03$cstarAt[bouss03$pres > 390 & bouss03$pres < 400], na.rm = TRUE)
 bouss03$crov <- bouss03$crov - mean(bouss03$crov[bouss03$pres > 390 & bouss03$pres < 400], na.rm = TRUE)
 
+
 ggplot(bouss03)+
   geom_path(aes(x = crov, y = -pres, colour = 'Crover'))+
   geom_path(aes(x = cstarAt, y = - pres, colour = 'Cstar'))+
@@ -148,13 +149,21 @@ ggplot(bouss03)+
 
 #ggsave('Boussole/Output/Plots/normalised_fluo', device = 'jpeg')
 
+bouss02$cstarat <- bouss02$cstarat - mean(bouss03$cstarAt[bouss03$pres > 390 & bouss03$pres < 400], na.rm = TRUE)
+bouss02$bb700 <- bouss02$bb700 - mean(bouss02$bb700[bouss02$pres > 90 & bouss02$pres < 100], na.rm = TRUE)
+
 coeff1 <- max(bouss02$bb700, na.rm = TRUE)/max(bouss02$cstarat, na.rm = TRUE)
-coeff2 <- max(bouss02$fluo_470, na.rm = TRUE)/max(bouss02$cstarat, na.rm = TRUE)
+coeff2 <- 1/max(bouss02$cstarat, na.rm = TRUE)
 
 ggplot(bouss02)+
   geom_path(aes(x = cstarat, y = -pres, colour = 'Attenuation'))+
   geom_path(aes(x = bb700/coeff1, y = -pres, colour = 'bb700' ))+
-  geom_path(aes(x = fluo_470/coeff2, y = -pres, colour = 'fluo470'))+
-  scale_x_continuous(name = 'Beam attenuation', sec.axis = sec_axis(~. * coeff1, name = 'bb700'))+
+  geom_path(aes(x = norm_470/coeff2, y = -pres, colour = 'fluo 470'))+
+  geom_path(aes(x = norm_440/coeff2, y = -pres, colour = 'fluo 440'))+
+  geom_path(aes(x = norm_532/coeff2, y = -pres, colour = 'fluo 532'))+
+  scale_x_continuous(name = 'Beam attenuation', sec.axis = sec_axis(~ . * coeff1, name = 'bb700'))+
   theme_classic()+
   scale_color_brewer(palette = 'Set1')
+
+ggsave('Boussole/Output/Plots/full_profile.png', device = "png")
+  

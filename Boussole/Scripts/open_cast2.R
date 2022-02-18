@@ -1,7 +1,7 @@
 library(lubridate)
 library(tidyverse)
 
-ctd <- read_table2("Boussole/Data/SBEMOOSE/Work/cnv/Bous222_03.cnv", 
+ctd <- read_table2("Boussole/Data/SBEMOOSE/Work/cnv/bous225_03.cnv", 
                    col_names = FALSE, skip = 340)
 
 names(ctd) <- c('pres', 'time', 'temp', 'temp2',
@@ -9,7 +9,7 @@ names(ctd) <- c('pres', 'time', 'temp', 'temp2',
                 'v3', 'cstarTr', 'cstarAt', 'ox_ml_l', 'ox_mm_kg', 'potemp',
                 'potemp2', 'sal', 'sal2', 'sigma', 'sigma2', 'flag')
 
-ctd_clean <- ctd[1:min(which(ctd$pres > 400)),] 
+ctd_clean <- ctd[1:min(which(ctd$pres < 2)),] 
 ggplot(ctd_clean)+
   geom_path(aes(x = cstarTr, y = -pres))
 
@@ -17,8 +17,10 @@ origin <- 13*3600 + 16 * 60 + 43
 ctd_clean$time <- seconds_to_period(origin + ctd_clean$time)
 
 
-echo <- read_table2("Boussole/Data/raw/bouss120920_03.txt", 
+echo <- read_table2("Boussole/Data/raw/b225_03.txt", 
                     col_names = FALSE, skip = 2)
+
+
 
 find <- apply( echo, 1, paste, collapse = "-" )
 
@@ -69,6 +71,9 @@ matched <- tibble('pres' = depth$y, 'second' = new_sec,
                   'crov' = crov_dt$y, 'cstarAt' = cstarAt$y,
                   'cstarTr' = cstarTr$y, 'cruise'= 'Boussole')
 matched <- filter(matched, fluo_440 < 1000)
+matched$day <- '09'
+matched$month <- '12'
+matched$year <- '2020'
 
 write_csv(matched, 'Boussole/Output/Data/Bouss_09_20_3')
 

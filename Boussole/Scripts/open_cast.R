@@ -17,12 +17,21 @@ write_ctd_echo_df <- function(echo_path, ctd_path, prof, lag = 0){
   sc <- as.numeric(substr(start_time, 7,8))
   
   
-  ctd <- read_table2(ctd_path, 
+  ctd <- read_table(ctd_path, 
                      col_names = FALSE, skip = start_line)
   
-  names(ctd) <- c('pres', 'time', 'temp', 'conductivity',
-                  'sbeox0v', 'fluo_chl', 'upoly0', 'upoly1', 'potemp',
-                  'sal00', 'sigma', 'sbeox_ml', 'sbeox_mm', 'flag')
+  if(bouss == 231){
+    names(ctd) <- c('pres', 'time', 'temp', 'conductivity',
+                    'sbeox0v', 'fluo_chl', 'flag') #la config a été changée sur cette campagne, car il y avait MOOSEGE en même temps
+  }
+  else{
+    names(ctd) <- c('pres', 'time', 'temp', 'conductivity',
+                    'sbeox0v', 'fluo_chl', 'upoly0', 'upoly1', 'potemp',
+                    'sal00', 'sigma', 'sbeox_ml', 'sbeox_mm', 'flag')
+    
+  }
+  
+
   
   if(prof == 'asc'){
     ctd_clean <- ctd[min(which(ctd$pres == max(ctd$pres))):min(which(ctd$pres == min(ctd$pres))),]
@@ -39,16 +48,21 @@ write_ctd_echo_df <- function(echo_path, ctd_path, prof, lag = 0){
   #ctd_clean <- ctd_clean[1:min(which(ctd_clean$pres < 2)),]
   
   ggplot(ctd_clean)+
-    geom_path(aes(x = fluo_chl, y = -pres))+
-    xlim(0,1.5)
+    geom_path(aes(x = fluo_chl, y = -pres))
   
   t <- 0
   echo <- data.frame()
-  while(ncol(echo) != 24){
-    echo <- read_table2(echo_path, 
-                        col_names = FALSE, skip = t)
-    t <- t+1
+  if(bouss < 231){
+    while(ncol(echo) != 24){
+      echo <- read_table2(echo_path, 
+                          col_names = FALSE, skip = t)
+      t <- t+1
+    } 
   }
+  else{
+    echo <- read_table(echo_path, col_names = FALSE)
+  }
+  
   
   echo <- echo %>% filter(!is.na(X4))
   echo$X4 <- hms(echo$X4)
@@ -68,29 +82,41 @@ write_ctd_echo_df <- function(echo_path, ctd_path, prof, lag = 0){
   
   mf <- grep(440, find)
   flbb <- grep(695, find)
-  ecov2 <- grep('ECOV2', find)
   
-  echo_3x1m <- echo[mf,]
-  flbb <- echo[flbb,]
-  ecov2 <- echo[ecov2,]
-  
-  echo_3x1m <- select(echo_3x1m, -X6, -X7, -X8, -X10, -X12, - c(X15:X24))
-  flbb <- select(flbb, -X6, -X7, -X8,-X10, -X12, - c(X15:X24))
-  
-  
-  names(echo_3x1m) <- c('day_name', 'month', 'day', 'time', 'year', 'fluo_440', 'fluo_470', 'fluo_532', 'echo3x', 'second', 'pres')
-  names(flbb) <- c('day_name', 'month', 'day', 'time', 'year', 'fluo_flbb', 'bb700', 'cdom', 'echov1', 'second', 'pres')
-  
-  ecov2names <- c('FrameSync,Counter,
+  if(bouss != 231){
+    
+    ecov2 <- grep('ECOV2', find)
+    ecov2 <- echo[ecov2,]
+    ecov2names <- c('FrameSync,Counter,
 CHL HiGain(Counts),CHL LoGain(Counts),CHL LTC(Counts),CHL Raw(Counts),
 Beta-700 HiGain(Counts),Beta-700 LoGain(Counts),Beta-700 LTC(Counts),Beta-700 Raw(Counts),
 CHL2 HiGain(Counts),CHL2 LoGain(Counts),CHL2 LTC(Counts),CHL2 Raw(Counts),
 FDOM HiGain(Counts),FDOM LoGain(Counts),FDOM LTC(Counts),FDOM Raw(Counts),
 vMain(Volts)') %>% strsplit(',') %>% unlist()
+    
+    names(ecov2) <- c('day_name', 'month', 'day', 'time', 'year', ecov2names, 'second', 'pres')
+  }
   
-  names(ecov2) <- c('day_name', 'month', 'day', 'time', 'year', ecov2names, 'second', 'pres')
   
-  multiplex <- full_join(flbb, echo_3x1m) %>% left_join(select(ecov2, all_of(ecov2names), pres), by = 'pres') %>% janitor::clean_names()
+  echo_3x1m <- echo[mf,]
+  flbb <- echo[flbb,]
+  
+  
+  echo_3x1m <- select(echo_3x1m, -X6, -X7, -X8, -X10, -X12, -X14)
+  flbb <- select(flbb, -X6, -X7, -X8,-X10, -X12)
+  
+  
+  names(echo_3x1m) <- c('day_name', 'month', 'day', 'time', 'year', 'fluo_440', 'fluo_470', 'fluo_532', 'second', 'pres')
+  names(flbb) <- c('day_name', 'month', 'day', 'time', 'year', 'fluo_flbb', 'bb700', 'cdom', 'echov1', 'second', 'pres')
+  
+  if(bouss != 231){
+    multiplex <- full_join(flbb, echo_3x1m) %>% left_join(select(ecov2, all_of(ecov2names), pres), by = 'pres') %>% janitor::clean_names()
+    
+  }
+  else{
+    multiplex <- full_join(flbb, echo_3x1m) %>% janitor::clean_names()
+    
+  }
   multiplex$time <- hms(multiplex$time)
   multiplex <- multiplex[which(!is.na(multiplex$time)),]
   
@@ -107,7 +133,7 @@ test_it <- function(data){
   g1 <- data %>% select(pres, fluo_440, fluo_470, fluo_532) %>% 
     pivot_longer(2:4, names_to = 'wl', values_to = 'counts') %>% ggplot()+
     geom_point(aes(x = counts, y = -pres, colour = wl), alpha = 0.7)+
-    xlim(25,110)+
+    xlim(0,200)+
     ggtitle('3X1M fluo')
   
   flbb <- data %>% select(pres, fluo_flbb, bb700, cdom) %>%
@@ -116,7 +142,6 @@ test_it <- function(data){
   
   g2 <- ggplot(filter(flbb, variable != 'bb700'))+
     geom_point(aes(x = val, y = -pres, colour = variable), alpha = 0.7)+
-    xlim(0,120)+
     ggtitle('flbb cdom + fluo')+
     ggplot(filter(flbb,variable == 'bb700', val < 20000))+
     geom_point(aes(x = val , y = -pres, colour = 'bb700'))+
@@ -139,8 +164,8 @@ test_it <- function(data){
 }
 
 way <- 'desc'
-prof_num <- 2
-bouss <- 'rade'
+prof_num <- 1
+bouss <- 233
 
 path_to_echo <- paste('Boussole/Data/raw/echo/b', bouss, '_', prof_num, '.txt', sep = '')
 path_to_ctd <- paste('Boussole/Data/SBEMOOSE/Work/cnv/bous', bouss, '_0', prof_num, '.cnv', sep = '')
@@ -155,6 +180,10 @@ output_df <- write_ctd_echo_df(echo_path = path_to_echo,
 
 test_it(output_df)
 
+
+if(bouss == 231){
+  output_df <- filter(output_df, !is.na(fluo_532))
+}
 #####attention##################################
 ###########################################"
 write_csv(output_df, path_to_save)
