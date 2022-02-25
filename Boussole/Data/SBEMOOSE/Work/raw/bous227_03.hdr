@@ -1,0 +1,42 @@
+* Sea-Bird SBE 9 Data File:
+* FileName = C:\boussole\202102\bous227_03.hdr
+* Software Version Seasave V 7.23.2
+* Temperature SN = 2473
+* Conductivity SN = 2929
+* Number of Bytes Per Scan = 37
+* Number of Voltage Words = 4
+* Number of Scans Averaged by the Deck Unit = 1
+* System UpLoad Time = Feb 18 2021 12:07:28
+* NMEA Latitude = 43 22.04 N
+* NMEA Longitude = 007 54.17 E
+* NMEA UTC (Time) = Feb 18 2021  12:07:25
+* Store Lat/Lon Data = Append to Every Scan
+* SBE 11plus V 5.2
+* number of scans to average = 1
+* pressure baud rate = 9600
+* NMEA baud rate = 4800
+* Latitude/Longitude added to scan
+* GPIB address = 1
+* advance primary conductivity  0.073 seconds
+* advance secondary conductivity  0.073 seconds
+* autorun on power up is disabled
+* S>
+* System UTC = Feb 18 2021 12:07:28
+** Campagne = BOUSSOLE 227
+** Navire = Tethys II
+** Station = BOUS227_03
+** Date = 18/02/2021
+** Heure debut [TU] = 12:08
+** Heure fin [TU] = 12:49
+** Heure locale / TU = +0
+** Latitude = 43 22.051 N
+** Longitude = 007 54.181 E
+** Heure meteo [TU] = 12:10
+** T air sec [deg C] = 13.3
+** T mer [deg C] = 13.64
+** Vent [noeuds, degres] = 11.3, 220°
+** Pression atm [hpa] = 1022.5
+** Humidite [%] = 77
+** Nebulosite [octas] = 8
+** Etat de la mer [code S] = 3
+*END*

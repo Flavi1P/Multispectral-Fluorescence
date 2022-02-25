@@ -39,7 +39,27 @@ for(i in data_paths){
   full_table <- bind_rows(full_table, test)
 }
 
+date_unique <- full_table %>% 
+  select(-day) %>% 
+  group_by(date, depth_round) %>% 
+  mutate(f440_f470 = fluo_440 / fluo_470,
+         f532_f470 = fluo_532 / fluo_470) %>% 
+  summarise_if(is.numeric, mean, na.rm = TRUE) %>% ungroup()
 
-ggplot(full_table)+
-  geom_point(aes(x = fluo_470, y = - depth_round))+
-  facet_wrap(.~ date)
+ggplot(date_unique)+
+  geom_point(aes(x = fluo_470, y = - depth_round, colour = "470"))+
+  geom_point(aes(x = fluo_440, y = - depth_round, colour = "440"))+
+  geom_point(aes(x = fluo_532, y = - depth_round, colour = "532"))+
+  facet_wrap(.~ date, ncol = 4)+
+  scale_color_brewer(palette = "Paired")+
+  theme_bw()+
+  xlim(0,250)
+
+ggplot(date_unique)+
+  geom_point(aes(x = f440_f470, y = -depth_round, colour = "440/470"))+
+  geom_point(aes(x = f532_f470, y = -depth_round, colour = "532/470"))+
+  geom_point(aes(x = fluo_chl, y = - depth_round, colour = "Chl"))+
+  facet_wrap(.~ date, ncol = 4)+
+  scale_color_brewer(palette = "Paired")+
+  theme_bw()+
+  xlim(0,3)
