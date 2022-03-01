@@ -5,7 +5,7 @@ library(patchwork)
 library(stringr)
 
 
-write_ctd_echo_df <- function(echo_path, ctd_path, prof, lag = 0){
+write_ctd_echo_df <- function(echo_path, ctd_path, prof, lag = 0, bouss){
   first <- readLines(ctd_path)
   start_line <- grep('END', first)
   
@@ -23,8 +23,7 @@ write_ctd_echo_df <- function(echo_path, ctd_path, prof, lag = 0){
   if(bouss == 231){
     names(ctd) <- c('pres', 'time', 'temp', 'conductivity',
                     'sbeox0v', 'fluo_chl', 'flag') #la config a été changée sur cette campagne, car il y avait MOOSEGE en même temps
-  }
-  else{
+  }else{
     names(ctd) <- c('pres', 'time', 'temp', 'conductivity',
                     'sbeox0v', 'fluo_chl', 'upoly0', 'upoly1', 'potemp',
                     'sal00', 'sigma', 'sbeox_ml', 'sbeox_mm', 'flag')
@@ -54,12 +53,10 @@ write_ctd_echo_df <- function(echo_path, ctd_path, prof, lag = 0){
   echo <- data.frame()
   if(bouss < 231){
     while(ncol(echo) != 24){
-      echo <- read_table2(echo_path, 
-                          col_names = FALSE, skip = t)
+      echo <- read_table(echo_path, col_names = FALSE, skip = t)
       t <- t+1
     } 
-  }
-  else{
+  }else{
     echo <- read_table(echo_path, col_names = FALSE)
   }
   
@@ -101,9 +98,14 @@ vMain(Volts)') %>% strsplit(',') %>% unlist()
   echo_3x1m <- echo[mf,]
   flbb <- echo[flbb,]
   
+  if(bouss < 231){
+    echo_3x1m <- select(echo_3x1m, -X6, -X7, -X8, -X10, -X12, -(X14:X24))
+    flbb <- select(flbb, -X6, -X7, -X8, -X10, -X12, -(X15:X24))
+  }else{
+    echo_3x1m <- select(echo_3x1m, -X6, -X7, -X8, -X10, -X12, -X14)
+    flbb <- select(flbb, -X6, -X7, -X8,-X10, -X12)
+  }
   
-  echo_3x1m <- select(echo_3x1m, -X6, -X7, -X8, -X10, -X12, -X14)
-  flbb <- select(flbb, -X6, -X7, -X8,-X10, -X12)
   
   
   names(echo_3x1m) <- c('day_name', 'month', 'day', 'time', 'year', 'fluo_440', 'fluo_470', 'fluo_532', 'second', 'pres')
@@ -112,8 +114,7 @@ vMain(Volts)') %>% strsplit(',') %>% unlist()
   if(bouss < 231){
     multiplex <- full_join(flbb, echo_3x1m) %>% left_join(select(ecov2, all_of(ecov2names), pres), by = 'pres') %>% janitor::clean_names()
     
-  }
-  else{
+  }else{
     multiplex <- full_join(flbb, echo_3x1m) %>% janitor::clean_names()
     
   }
@@ -123,52 +124,20 @@ vMain(Volts)') %>% strsplit(',') %>% unlist()
   
   
   full_df <- bind_rows(ctd_clean, multiplex)
-  
-  full_df$date <- paste(full_df$day, full_df$month, full_df$year, sep = ' ')
+  day_df <- unique(na.omit(full_df$day))
+  month_df <- unique(na.omit(full_df$month))
+  year_df <- unique(na.omit(full_df$year))
+  full_df <- full_df %>% mutate(date = paste(day_df, month_df, year_df, sep = ' '),
+                                day = day_df,
+                                month = month_df,
+                                year = year_df)
   
   return(full_df)
 }
 
-test_it <- function(data, bouss_num){
-  g1 <- data %>% select(pres, fluo_440, fluo_470, fluo_532) %>% 
-    pivot_longer(2:4, names_to = 'wl', values_to = 'counts') %>% ggplot()+
-    geom_point(aes(x = counts, y = -pres, colour = wl), alpha = 0.7)+
-    xlim(0,200)+
-    ggtitle('3X1M fluo')
-  
-  flbb <- data %>% select(pres, fluo_flbb, bb700, cdom) %>%
-    pivot_longer(2:4, names_to = 'variable', values_to = 'val')
-  #flbb <- flbb[max(which(flbb$pres < 2)):nrow(flbb),]
-  
-  g2 <- ggplot(filter(flbb, variable != 'bb700'))+
-    geom_point(aes(x = val, y = -pres, colour = variable), alpha = 0.7)+
-    ggtitle('flbb cdom + fluo')+
-    ggplot(filter(flbb,variable == 'bb700', val < 20000))+
-    geom_point(aes(x = val , y = -pres, colour = 'bb700'))+
-    scale_color_viridis_d()+
-    ggtitle('flbb bb700')
-  if(bouss_num < 231){
-    ecov2 <- data %>% select(pres, chl_hi_gain_counts, chl2_hi_gain_counts, beta_700_hi_gain_counts, fdom_hi_gain_counts) %>% 
-      pivot_longer(2:5, names_to = 'variable', values_to = 'val')
-    
-    g3 <- ggplot(filter(ecov2, variable %in% c('chl_hi_gain_counts', 'chl2_hi_gain_counts')))+
-      geom_point(aes(x = val, y = - pres, colour = variable))+
-      ggtitle('ECOV2 fluo profiles')+
-      ggplot(filter(ecov2, !variable %in% c('chl_hi_gain_counts', 'chl2_hi_gain_counts')))+
-      geom_point(aes(x = val, y = - pres, colour = variable))+
-      ggtitle('ECOV2 bb700 + fdom profiles')
-    
-    print(g1+g2+g3)
-  }
-  else{
-    print(g1 + g2)
-  }
-  
-}
-
 way <- 'desc'
 prof_num <- 1
-bouss <- 233
+bouss <- 225
 
 path_to_echo <- paste('Boussole/Data/raw/echo/b', bouss, '_', prof_num, '.txt', sep = '')
 path_to_ctd <- paste('Boussole/Data/SBEMOOSE/Work/cnv/bous', bouss, '_0', prof_num, '.cnv', sep = '')
@@ -177,34 +146,23 @@ path_to_save <- paste('Boussole/Output/Data/b', bouss, '/b', bouss, '_', way, pr
 
 output_df <- write_ctd_echo_df(echo_path = path_to_echo,
                                ctd_path = path_to_ctd,
-                               prof = way)
-
-
-
-test_it(output_df, bouss)
-
-
-if(bouss >= 231){
-  output_df <- filter(output_df, !is.na(fluo_532))
-}
-#####attention##################################
-###########################################"
-write_csv(output_df, path_to_save)
+                               prof = way,
+                               bouss = bouss)
 
 
 # create all dataframe from all campains ----------------------------------
 
-my_data_list <- list.files("Boussole/Data/raw/echo")
-my_data_list <- my_data_list[- str_detect(my_data_list, "b223")]
+my_data_list <- list.files("Boussole/Data/SBEMOOSE/Work/cnv")
+#my_data_list <- my_data_list[-str_detect(my_data_list, "bous223")]
 
-bouss_numb <- unique(str_extract(my_data_list, "[0-9]{3}_[0-9]")) %>% na.omit()
+bouss_numb <- unique(str_extract(my_data_list, "[0-9]{3}_[0-9]{2}")) %>% na.omit()
 num_temp <- as.numeric(str_extract(bouss_numb, "[0-9]{3}"))
 
-bouss_numb <- bouss_numb[num_temp > 232]
+bouss_numb <- bouss_numb[num_temp > 224 & num_temp != 232]
 
 
 for(i in bouss_numb){
-  num_temp <- str_extract(i, "[0-9]{3}")
+  num_temp <- as.numeric(str_extract(i, "[0-9]{3}"))
   prof_temp <- str_extract(i, "[0-9]$")
   way <- c("asc", "desc")
   for(j in way){
@@ -215,15 +173,13 @@ for(i in bouss_numb){
     
     output_df <- write_ctd_echo_df(echo_path = path_to_echo,
                                    ctd_path = path_to_ctd,
-                                   prof = j)
+                                   prof = j,
+                                   bouss = num_temp)
     
-    if(bouss >= 231){
-      output_df <- filter(output_df, !is.na(fluo_532))
       
       #####attention##################################
       ###########################################"
       write_csv(output_df, path_to_save)
-    }
   }
 }
  
