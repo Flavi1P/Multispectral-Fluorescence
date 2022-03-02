@@ -72,3 +72,5 @@ ggplot(filter(date_unique, way == "desc"))+
   scale_color_brewer(palette = "Paired")+
   theme_bw()+
   xlim(0,3)
+
+write_csv(date_unique, "Boussole/Output/Data/Compiled/ctd_multiplexer_all_campains.csv")
