@@ -64,7 +64,7 @@ ggplot(date_unique)+
   scale_color_brewer(palette = "Paired")+
   theme_bw()
 
-ggplot(date_unique)+
+ggplot(filter(date_unique, way == "desc"))+
   geom_point(aes(x = f440_f470, y = -depth_round, colour = "440/470"))+
   geom_point(aes(x = f532_f470, y = -depth_round, colour = "532/470"))+
   geom_point(aes(x = fluo_chl, y = - depth_round, colour = "Chl"))+
