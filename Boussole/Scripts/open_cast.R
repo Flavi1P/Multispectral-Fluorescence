@@ -51,7 +51,7 @@ write_ctd_echo_df <- function(echo_path, ctd_path, prof, lag = 0, bouss){
   
   t <- 0
   echo <- data.frame()
-  if(bouss < 231){
+  if(bouss < 230){
     while(ncol(echo) != 24){
       echo <- read_table(echo_path, col_names = FALSE, skip = t)
       t <- t+1
@@ -80,7 +80,7 @@ write_ctd_echo_df <- function(echo_path, ctd_path, prof, lag = 0, bouss){
   mf <- grep(440, find)
   flbb <- grep(695, find)
   
-  if(bouss < 231){
+  if(bouss < 230){
     
     ecov2 <- grep('ECOV2', find)
     ecov2 <- echo[ecov2,]
@@ -98,7 +98,7 @@ vMain(Volts)') %>% strsplit(',') %>% unlist()
   echo_3x1m <- echo[mf,]
   flbb <- echo[flbb,]
   
-  if(bouss < 231){
+  if(bouss < 230){
     echo_3x1m <- select(echo_3x1m, -X6, -X7, -X8, -X10, -X12, -(X14:X24))
     flbb <- select(flbb, -X6, -X7, -X8, -X10, -X12, -(X15:X24))
   }else{
@@ -111,7 +111,7 @@ vMain(Volts)') %>% strsplit(',') %>% unlist()
   names(echo_3x1m) <- c('day_name', 'month', 'day', 'time', 'year', 'fluo_440', 'fluo_470', 'fluo_532', 'second', 'pres')
   names(flbb) <- c('day_name', 'month', 'day', 'time', 'year', 'fluo_flbb', 'bb700', 'cdom', 'echov1', 'second', 'pres')
   
-  if(bouss < 231){
+  if(bouss < 230){
     multiplex <- full_join(flbb, echo_3x1m) %>% left_join(select(ecov2, all_of(ecov2names), pres), by = 'pres') %>% janitor::clean_names()
     
   }else{
@@ -135,9 +135,9 @@ vMain(Volts)') %>% strsplit(',') %>% unlist()
   return(full_df)
 }
 
-way <- 'desc'
-prof_num <- 1
-bouss <- 225
+way <- 'asc'
+prof_num <- 2
+bouss <- 230
 
 path_to_echo <- paste('Boussole/Data/raw/echo/b', bouss, '_', prof_num, '.txt', sep = '')
 path_to_ctd <- paste('Boussole/Data/SBEMOOSE/Work/cnv/bous', bouss, '_0', prof_num, '.cnv', sep = '')

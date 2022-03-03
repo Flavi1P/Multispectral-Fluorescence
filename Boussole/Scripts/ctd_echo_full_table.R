@@ -11,6 +11,7 @@ for(i in data_folder){
 }
 
 data_paths <- data_paths[-grep("brade", data_paths)]
+data_paths <- data_paths[-grep("Compiled", data_paths)]
 
 full_table <- data.frame("bouss" = numeric(),
                          "prof_num" = numeric(),
@@ -62,15 +63,18 @@ ggplot(date_unique)+
   geom_point(aes(x = fluo_532, y = - depth_round, colour = "532"))+
   facet_wrap(.~ prof_id , ncol = 4)+
   scale_color_brewer(palette = "Paired")+
-  theme_bw()
+  theme_bw()+
+  xlim(50,400)+
+  ylim(-100,0)
 
-ggplot(filter(date_unique, way == "desc"))+
+ggplot(filter(date_unique, way == "asc"))+
   geom_point(aes(x = f440_f470, y = -depth_round, colour = "440/470"))+
   geom_point(aes(x = f532_f470, y = -depth_round, colour = "532/470"))+
   geom_point(aes(x = fluo_chl, y = - depth_round, colour = "Chl"))+
   facet_wrap(.~ prof_id, ncol = 4)+
   scale_color_brewer(palette = "Paired")+
   theme_bw()+
-  xlim(0,3)
+  xlim(0,3)+
+  ylim(-100,0)
 
 write_csv(date_unique, "Boussole/Output/Data/Compiled/ctd_multiplexer_all_campains.csv")
