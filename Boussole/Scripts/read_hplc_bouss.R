@@ -5,6 +5,9 @@ read_hplc <- function(path){
   
   date <- select(data, matches('(^.*date)|(^date$)'))
   if(length(date) != 1){
+    if(length(date > 2)){
+      date <- select(date, matches('sampl'))
+    }
     if(length(date) == 2){
       date <- select(date, matches('echantillon'))
     }
@@ -30,7 +33,7 @@ read_hplc <- function(path){
   }
 
   
-  depth <- select(data, matches('profondeur'))
+  depth <- select(data, matches("profondeur|depth"))
   if(length(depth) != 1){
     depth <- select(data, matches('^depth$'))
     if(length(depth) != 1){
@@ -106,7 +109,7 @@ read_hplc <- function(path){
       viola <- NA
     }
     
-    hex <- select(data, matches('(?=hex)(?!.*qa)', perl = TRUE))
+    hex <- select(data, matches('(?=hexa)(?!.*qa)', perl = TRUE))
     if(length(hex) !=1){
       hex <- NA
     }
@@ -127,8 +130,8 @@ read_hplc <- function(path){
     }
     
     zea <- select(data, matches('(?=zea)(?!.*qa)', perl = TRUE))
-    if(length(allo) !=1){
-      allo <- NA
+    if(length(zea) !=1){
+      zea <- NA
     }
     
     lutein <- select(data, matches('^(?=lutein)(?!.*qa)', perl = TRUE))
@@ -141,7 +144,7 @@ read_hplc <- function(path){
         dv_chlb <- NA
       }
     
-    chlb <- select(data, matches('^(?=chl.*b$)(?!.*qa)', perl = TRUE))
+    chlb <- select(data, matches('^(?=chl.*l_b$)(?!.*qa)', perl = TRUE))
     if(length(chlb) !=1){
         chlb <- NA
     }
