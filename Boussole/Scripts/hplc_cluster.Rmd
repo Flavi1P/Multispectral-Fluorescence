@@ -1,0 +1,183 @@
+---
+title: "Clustering of HPLC samples"
+output:
+  html_document:
+    code_folding: "hide"
+---
+
+# Exploration and clustering of the Boussole HPLC dataset
+
+This work aims to explore the raw pigment data of the year of concomittant HPLC and 3X1M sampling at the Boussole site. </br>
+The ultimate goal is to evaluate the possibility of using the 3X1M fluorometer to get informations on the phytoplankton community composition. </br>
+To do so, we will try to create a classification model that will allow to predict the type of phytoplankton community. </br>
+The "type of phytoplankton community" must be defined in this notebook. We want to evaluate the major successions in pigment composition and the co-appearance of pigments to create a couple of cluster that occurs at given depth and time in the year. </br>
+</br>
+***
+</br>
+At first, we load the HPLC data, that have been already match with 3X1M data.
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+
+local_path <- here::here() #define the local path
+data_path <- paste(local_path, "Boussole/Output/Data/Compiled/echo_hplc_bouss.csv", sep ="/")
+
+hplc <- read_csv(data_path)
+
+#define some pigment vec to ease the data manipulation later 
+pigments <- c("chl_c1_c2", "chl_c3", "peri", "but", "fuco", "neox", "prasi", "viola", "hex", "diad", "allo", "diat", "zea", "lutein", "dv_chlb", "chlb", "t_chlb", "dv_chla", "chla", "t_chla")
+pigtosum <- c("chl_c1_c2", "chl_c3", "peri", "but", "fuco", "neox", "prasi", "viola", "hex", "diad", "allo", "diat", "zea", "lutein", "t_chlb", "t_chla")
+pigment_to_plot <- pigtosum[pigtosum != "t_chla"]
+data_to_plot <- select(hplc, bouss, date, depth, sumpig, pigments) %>% 
+  mutate_at(all_of(pigment_to_plot), ~./sumpig) %>%
+  pivot_longer(all_of(pigment_to_plot), values_to = "proportion", names_to = "pigment")
+```
+
+We will visualize each sample as a dot, the size of the dot is the Chla concentration and the colour correspond to the fraction of the pigment in the total accessories pigment concentration.
+
+```{r fig.align="center", fig.width=10, fig.height=6, fig.cap="Figure: Proportion of each pigment in the total pigment concentration for each HPLC sample at BOUSSOLE"}
+g <- ggplot(data_to_plot)+
+  geom_point(aes(x = date, y = -depth, colour = proportion, size = t_chla))+
+  scale_colour_viridis_c(name = "Pigment proportion")+
+  xlab("Date")+
+  ylab("Depth (m)")+
+  scale_size(name = "[Chla]")+
+  facet_wrap(.~pigment)
+g
+```
+We observe some interesting features here. First, the Chla concentration start to increase in March/April and deepen during the following month. This is coherent with what has been previously described. We can notice the early increase of the [Chla] and the magnitude of it, we reach 3 mg.m-3 !! </br>
+This increase of Chla is associated with an increase of the fucoxanthin proportion indicating of a bloom of Diatom. After which, the diatoms are mainly present in the deep layer (< 50m). The 19'-HF pigment represent more that 10% of the pigment community in almost every samples. we also notice an outbreak of Zeaxanthin in the surface/subsurface layer in april, after which the zeaxanthin represent a significant part of the pigment composition at the surface. Finally, we can observe a depth community with a significant concentration of 19'-bf and Chlb/Chlc. </br>
+</br>
+We will now reduce the number of dimension (i.e. the number of descriptors) by performing a CA, that consist of regrouping samples with similar relativ abundances (here concentration). This will allow us to perform hierarchical clustering.</br>
+```{r fig.align="center", fig.cap="Figure: CA rpojection of HPLC data", fig.height=6, fig.width=10, message=FALSE, warning=FALSE}
+library(vegan)
+
+pigments_afc <- pigments[pigments != "t_chla" & pigments != "t_chlb"]
+
+AFC <- cca(select(hplc, all_of(pigments_afc)))
+
+scores <- data.frame(scores(AFC, choices = c(1,2,3), display = "site"))
+data_ca <- bind_cols(hplc, scores)
+
+pigscore <- data.frame(scores(AFC, choices = c(1,2,3), display = "species"))
+
+
+ggplot(data_ca)+
+  geom_point(aes(x = CA1, y = CA2, colour = depth, size = t_chla))+
+  geom_segment(aes(x = 0, xend = CA1, y = 0, yend = CA2), data = pigscore)+
+  ggrepel::geom_text_repel(aes(x = CA1, y = CA2, label = rownames(pigscore)), data = pigscore)+
+  scale_color_viridis_c(direction = -1)+
+  xlim(-2,2)+
+  ylim(-2,2)+
+  theme_bw()
+```
+This analysis already separate samples of different depth, chla concentration... Let's see what clustering can give us.</br>
+```{r fig.align="center", fig.cap="Figure: Clustering tree", fig.height=6, fig.width=10, message=FALSE, warning=FALSE}
+distbouss <- dist(select(data_ca, CA1, CA2))
+data_ca$group <- as.factor(cutree(hclust(distbouss, method = "ward.D"),  h = 19))
+
+plot(hclust(distbouss, method = "ward.D"))
+```
+Following this tree I propose to cut at h = 18.
+
+```{r message=FALSE, warning=FALSE}
+data_to_plot <- select(data_ca, bouss, date, depth, sumpig, pigments, group) %>% 
+  mutate_at(all_of(pigment_to_plot), ~./sumpig) %>%
+  pivot_longer(all_of(pigment_to_plot), values_to = "proportion", names_to = "pigment")
+```
+
+```{r fig.align="center", fig.cap="Figure: cluster composition", fig.height=7, fig.width=10, message=FALSE, warning=FALSE}
+# cluster visualization ---------------------------------------------------
+library(treemap)
+library(treemapify)
+library(patchwork)
+
+cluster_viz <- data_ca %>% select(pigment_to_plot, group) %>%  group_by(group) %>%
+  summarise_all(mean, na.rm = "TRUE") %>% ungroup() %>% 
+  pivot_longer(all_of(pigment_to_plot), values_to = "concentration", names_to = "pigment")
+
+tplot <- data_ca %>% 
+  group_by(group) %>% 
+  mutate(wdp = 1.56 * fuco + 0.92 * peri + 4.8 * allo + 1.02 * but + 1.12 * hex + 1.51 * zea + 0.69 * t_chlb,
+         micro = (1.56 * fuco + 0.92 * peri)/wdp,
+         nano = (4.8 * allo + 1.02 * but + 1.51 * hex)/wdp,
+         pico = (1.51 * zea + 0.69 * t_chlb)/wdp) %>% 
+  summarise_at(vars(c(pico, nano, micro, t_chlb, fuco, zea, peri, allo, hex, but)), mean, na.rm = TRUE) %>% 
+  ungroup() %>% 
+  pivot_longer(t_chlb:but, names_to = 'pigment', values_to = 'concentration') %>% 
+  mutate(size = ifelse(pigment %in% c('zea', 't_chlb'), 'pico', ifelse(pigment %in% c('allo', 'hex', 'but'), 'nano', ifelse(pigment %in% c('fuco', 'peri'), 'micro', 'error'))))
+
+tplot1 <- filter(tplot, group == '1')
+tplot2 <- filter(tplot, group == '2')
+tplot3 <- filter(tplot, group == '3')
+tplot4 <- filter(tplot, group == '4')
+
+
+
+ga <- ggplot(data_to_plot)+
+  geom_point(aes(x = date, y = -depth, size = t_chla), colour = "Grey")+
+  geom_point(data = filter(data_to_plot, group == "1"), aes(x =date, y = -depth, size = t_chla), colour = "#e41a1c")+
+  scale_size(guide = "none")+
+  xlab("")+
+  theme_bw()+
+  ggtitle("Cluster 1")
+
+gb <- ggplot(data_to_plot)+
+  geom_point(aes(x = date, y = -depth, size = t_chla), colour = "Grey")+
+  geom_point(data = filter(data_to_plot, group == "2"), aes(x =date, y = -depth, size = t_chla), colour = "#377eb8")+
+  xlab("")+
+  ylab("")+
+  theme_bw()+
+  scale_size(guide = "none")+
+  ggtitle("Cluster 2")
+
+gc <- ggplot(data_to_plot)+
+  geom_point(aes(x = date, y = -depth, size = t_chla), colour = "Grey")+
+  geom_point(data = filter(data_to_plot, group == "3"), aes(x =date, y = -depth, size = t_chla), colour = "#4daf4a")+
+  scale_size(guide = "none")+
+  theme_bw()+
+  xlab("")+
+  ylab("")+
+  ggtitle("Cluster 3")
+
+gd <- ggplot(data_to_plot)+
+  geom_point(aes(x = date, y = -depth, size = t_chla), colour = "Grey")+
+  geom_point(data = filter(data_to_plot, group == "4"), aes(x =date, y = -depth, size = t_chla), colour = "#984ea3")+
+  scale_size(guide = "none")+
+  theme_bw()+
+  xlab("")+
+  ylab("")+
+  ggtitle("Cluster 4")
+#create the three treeplot
+
+g2 <- ggplot(tplot1, aes(area = concentration, fill = size, subgroup = size, label = pigment))+
+  geom_treemap(layout = 'fixed')+
+  geom_treemap_subgroup_text(layout = 'fixed', place = 'middle', fontface = 'bold', size = 14)+
+  geom_treemap_text(layout = 'fixed', place = 'bottomright', 'size' = 11, colour = 'white', fontface = 'italic')+
+  guides(fill = "none")+
+  scale_fill_brewer(palette = 'Dark2')
+
+g3 <- ggplot(tplot2, aes(area = concentration, fill = size, subgroup = size, label = pigment))+
+  geom_treemap(layout = 'fixed')+
+  geom_treemap_subgroup_text(layout = 'fixed', place = 'middle', fontface = 'bold', size = 14)+
+  geom_treemap_text(layout = 'fixed', place = 'bottomright', 'size' = 11, colour = 'white', fontface = 'italic')+
+  guides(fill = "none")+
+  scale_fill_brewer(palette = 'Dark2')
+
+g4 <- ggplot(tplot3, aes(area = concentration, fill = size, subgroup = size, label = pigment))+
+  geom_treemap(layout = 'fixed')+
+  geom_treemap_subgroup_text(layout = 'fixed', place = 'middle', fontface = 'bold', size = 14)+
+  geom_treemap_text(layout = 'fixed', place = 'bottomright', 'size' = 11, colour = 'white', fontface = 'italic')+
+  guides(fill = "none")+
+  scale_fill_brewer(palette = 'Dark2')
+
+g5 <- ggplot(tplot4, aes(area = concentration, fill = size, subgroup = size, label = pigment))+
+  geom_treemap(layout = 'fixed')+
+  geom_treemap_subgroup_text(layout = 'fixed', place = 'middle', fontface = 'bold', size = 14)+
+  geom_treemap_text(layout = 'fixed', place = 'bottomright', 'size' = 11, colour = 'white', fontface = 'italic')+
+  guides(fill = "none")+
+  scale_fill_brewer(palette = 'Dark2')
+
+(ga|gb|gc|gd) /(g2 | g3 | g4| g5)
+```
+We find the same structure as in the first structure. The first cluster corresponds to the high concentration of [Chlb] and might not be significative here. 

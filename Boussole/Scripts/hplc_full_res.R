@@ -30,6 +30,8 @@ merge_data <- left_join(hplc, ctd, by = c("bouss", "depth")) %>%
          sumpig = rowSums(across(all_of(pigtosum)), na.rm = T)) %>% 
   filter(depth < 100)
 
+#write_csv(merge_data, "Boussole/Output/Data/Compiled/echo_hplc_bouss.csv")
+
 pigment_to_plot <- pigtosum[pigtosum != "t_chla"]
 data_to_plot <- select(merge_data, bouss, date, depth, sumpig, pigments) %>% 
   mutate_at(all_of(pigment_to_plot), ~./sumpig) %>%
@@ -178,5 +180,7 @@ mf_cluster <- data_ca %>% select(group, f440_f470, f532_f470) %>%
   summarise_all(c(mean, sd), na.rm = TRUE) %>% 
   ungroup()
 
-#write_csv(data_ca, "Boussole/Output/Data/Compiled/hplc_mf_clusterised")
+data_ca <- data_ca %>% replace_na(list(bb700 = "120")) %>% 
+  mutate(cluster = paste("group", group, sep = "_"))
+write_csv(data_ca, "Boussole/Output/Data/Compiled/hplc_mf_clusterised.csv")
 
