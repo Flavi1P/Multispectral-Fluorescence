@@ -27,7 +27,7 @@ hplc <- read_csv(data_path)
 #define some pigment vec to ease the data manipulation later 
 pigments <- c("chl_c1_c2", "chl_c3", "peri", "but", "fuco", "neox", "prasi", "viola", "hex", "diad", "allo", "diat", "zea", "lutein", "dv_chlb", "chlb", "t_chlb", "dv_chla", "chla", "t_chla")
 pigtosum <- c("chl_c1_c2", "chl_c3", "peri", "but", "fuco", "neox", "prasi", "viola", "hex", "diad", "allo", "diat", "zea", "lutein", "t_chlb", "t_chla")
-pigment_to_plot <- pigtosum[pigtosum != "t_chla"]
+pigment_to_plot <- pigments[!pigments %in% c("t_chla", "t_chlb", "chla")]
 data_to_plot <- select(hplc, bouss, date, depth, sumpig, pigments) %>% 
   mutate_at(all_of(pigment_to_plot), ~./sumpig) %>%
   pivot_longer(all_of(pigment_to_plot), values_to = "proportion", names_to = "pigment")
@@ -73,12 +73,14 @@ ggplot(data_ca)+
 ```
 This analysis already separate samples of different depth, chla concentration... Let's see what clustering can give us.</br>
 ```{r fig.align="center", fig.cap="Figure: Clustering tree", fig.height=6, fig.width=10, message=FALSE, warning=FALSE}
-distbouss <- dist(select(data_ca, CA1, CA2))
-data_ca$group <- as.factor(cutree(hclust(distbouss, method = "ward.D"),  h = 19))
+data_ca <- data_ca %>% mutate("f532_f440" = fluo_532 /fluo_440)
+distbouss <- dist(select(data_ca, f440_f470, f532_f470, CA1, CA2))
 
 plot(hclust(distbouss, method = "ward.D"))
+
+data_ca$group <- as.factor(cutree(hclust(distbouss, method = "ward.D"),  h = 20))
 ```
-Following this tree I propose to cut at h = 18.
+Following this tree I propose to cut at h = 20.
 
 ```{r message=FALSE, warning=FALSE}
 data_to_plot <- select(data_ca, bouss, date, depth, sumpig, pigments, group) %>% 
@@ -102,15 +104,15 @@ tplot <- data_ca %>%
          micro = (1.56 * fuco + 0.92 * peri)/wdp,
          nano = (4.8 * allo + 1.02 * but + 1.51 * hex)/wdp,
          pico = (1.51 * zea + 0.69 * t_chlb)/wdp) %>% 
-  summarise_at(vars(c(pico, nano, micro, t_chlb, fuco, zea, peri, allo, hex, but)), mean, na.rm = TRUE) %>% 
+  summarise_at(vars(c(pico, nano, micro, t_chlb, fuco, zea, peri, allo, hex, but, dv_chla)), mean, na.rm = TRUE) %>% 
   ungroup() %>% 
-  pivot_longer(t_chlb:but, names_to = 'pigment', values_to = 'concentration') %>% 
-  mutate(size = ifelse(pigment %in% c('zea', 't_chlb'), 'pico', ifelse(pigment %in% c('allo', 'hex', 'but'), 'nano', ifelse(pigment %in% c('fuco', 'peri'), 'micro', 'error'))))
+  pivot_longer(t_chlb:dv_chla, names_to = 'pigment', values_to = 'concentration') %>% 
+  mutate(size = ifelse(pigment %in% c('zea', 't_chlb', 'dv_chla'), 'pico', ifelse(pigment %in% c('allo', 'hex', 'but'), 'nano', ifelse(pigment %in% c('fuco', 'peri'), 'micro', 'error'))))
 
 tplot1 <- filter(tplot, group == '1')
 tplot2 <- filter(tplot, group == '2')
 tplot3 <- filter(tplot, group == '3')
-tplot4 <- filter(tplot, group == '4')
+#tplot4 <- filter(tplot, group == '4')
 
 
 
@@ -140,14 +142,14 @@ gc <- ggplot(data_to_plot)+
   ylab("")+
   ggtitle("Cluster 3")
 
-gd <- ggplot(data_to_plot)+
-  geom_point(aes(x = date, y = -depth, size = t_chla), colour = "Grey")+
-  geom_point(data = filter(data_to_plot, group == "4"), aes(x =date, y = -depth, size = t_chla), colour = "#984ea3")+
-  scale_size(guide = "none")+
-  theme_bw()+
-  xlab("")+
-  ylab("")+
-  ggtitle("Cluster 4")
+#gd <- ggplot(data_to_plot)+
+  # geom_point(aes(x = date, y = -depth, size = t_chla), colour = "Grey")+
+  # geom_point(data = filter(data_to_plot, group == "4"), aes(x =date, y = -depth, size = t_chla), colour = "#984ea3")+
+  # scale_size(guide = "none")+
+  # theme_bw()+
+  # xlab("")+
+  # ylab("")+
+  # ggtitle("Cluster 4")
 #create the three treeplot
 
 g2 <- ggplot(tplot1, aes(area = concentration, fill = size, subgroup = size, label = pigment))+
@@ -171,13 +173,73 @@ g4 <- ggplot(tplot3, aes(area = concentration, fill = size, subgroup = size, lab
   guides(fill = "none")+
   scale_fill_brewer(palette = 'Dark2')
 
-g5 <- ggplot(tplot4, aes(area = concentration, fill = size, subgroup = size, label = pigment))+
-  geom_treemap(layout = 'fixed')+
-  geom_treemap_subgroup_text(layout = 'fixed', place = 'middle', fontface = 'bold', size = 14)+
-  geom_treemap_text(layout = 'fixed', place = 'bottomright', 'size' = 11, colour = 'white', fontface = 'italic')+
-  guides(fill = "none")+
-  scale_fill_brewer(palette = 'Dark2')
+#g5 <- ggplot(tplot4, aes(area = concentration, fill = size, subgroup = size, label = pigment))+
+  # geom_treemap(layout = 'fixed')+
+  # geom_treemap_subgroup_text(layout = 'fixed', place = 'middle', fontface = 'bold', size = 14)+
+  # geom_treemap_text(layout = 'fixed', place = 'bottomright', 'size' = 11, colour = 'white', fontface = 'italic')+
+  # guides(fill = "none")+
+  # scale_fill_brewer(palette = 'Dark2')
 
-(ga|gb|gc|gd) /(g2 | g3 | g4| g5)
+(ga|gb|gc) /(g2 | g3 | g4)
+
+
 ```
 We find the same structure as in the first structure. The first cluster corresponds to the high concentration of [Chlb] and might not be significative here. 
+
+```{r message=FALSE, warning=FALSE}
+results_path <- paste(local_path, "Boussole/Data/labo/results_reshape.csv", sep ="/")
+
+results <- read_csv(results_path)
+
+pigments <- c("chl_c1_c2", "chl_c3", "peri", "but", "fuco", "diad", "diat", "zea", "dv_chlb", "chlb", "t_chlb", "dv_chla", "chla", "t_chla")
+
+result_long <- results %>%
+  rename("chl_c1_c2" = chlorophyll_c1_c2_mg_dvp,
+         "chl_c3" = chlorophyll_c3,
+         "peri" = peridinin,
+         "but" = x19_butanoyloxyfucoxanthin,
+         "fuco" = fucoxanthin,
+         "diad" = diadinoxanthin,
+         "diat" = diatoxanthin,
+         "zea" = zeaxanthin,
+         "dv_chlb" = divinyl_chlorophyll_b,
+         "chlb" = chlorophyll_b,
+         "dv_chla" = divinyl_chlorophyll_a,
+         "chla" = chlorophyll_a,
+         "t_chla" = total_chlorophyll_a,
+         "f440" = "440nm_mean",
+         "f470" = "470nm_mean",
+         "f532" = "532nm_mean",
+         "fv_fm" = "Fv/Fm") %>% 
+  filter(!is.na(number_cells)) %>% 
+  pivot_longer(pigments, names_to = "pigment", values_to = "concentration") %>% 
+  mutate(cell_conc = concentration/number_cells,
+         "f440_f470" = f440/f470,
+         "f532_f470" = f532/f470) %>% 
+  select(strain, replicate, f440, f470, f532, f440_f470, f532_f470, number_cells, fv_fm, pigment, concentration, cell_conc)
+
+pig_cell = paste(result_long$pigment, "_cell", sep ="")
+
+result_wide <- result_long %>% 
+  select(-cell_conc) %>% 
+  pivot_wider(names_from = pigment, values_from = concentration)
+result_cell_conc <-  result_long %>%
+  mutate(pig_cell = paste(pigment, "_cell", sep = "")) %>%
+  select(-concentration, -pigment) %>% 
+  pivot_wider(names_from = pig_cell, values_from = cell_conc)
+  
+result_tot <- left_join(result_wide, result_cell_conc) %>% mutate(common_name = case_when(
+  strain %in% c("RCC1717", "RCC76", "RCC4213") ~ "Diatom",
+  strain %in% c("RCC162", "RCC156", "PCC9511") ~ "Prochlorococcus",
+  strain %in% c("RCC2379", "RCC2374", "RCC2319") ~ "Synechococcus",
+  strain %in% c("RCC100") ~ "Pelagophyte",
+  strain %in% c("RCC3006") ~ "Dino"
+))
+
+```
+
+
+
+
+
+

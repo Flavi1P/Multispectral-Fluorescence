@@ -25,7 +25,7 @@ merge_data <- left_join(hplc, ctd, by = c("bouss", "depth")) %>%
          min_val = min(diff_ctd)) %>% 
   filter(diff_ctd == min_val) %>% 
   ungroup() %>% 
-  select(date, bouss, depth, fluo_440, fluo_470, fluo_532, f440_f470, f532_f470, bb700, cdom, pigments) %>% 
+  select(date, bouss, depth, temp, fluo_440, fluo_470, fluo_532, f440_f470, f532_f470, bb700, cdom, pigments) %>% 
   mutate(date = lubridate::as_date(date),
          sumpig = rowSums(across(all_of(pigtosum)), na.rm = T)) %>% 
   filter(depth < 100)
@@ -65,10 +65,12 @@ ggplot(data_ca)+
   xlim(-2,2)+
   ylim(-2,2)
 
+data_ca <- data_ca %>% mutate("f532_f440" = fluo_532 /fluo_440)
+distbouss <- dist(select(data_ca, f440_f470, f532_f470, CA1, CA2))
+
 plot(hclust(distbouss, method = "ward.D"))
 
-distbouss <- dist(select(data_ca, CA1, CA2))
-data_ca$group <- as.factor(cutree(hclust(distbouss, method = "ward.D"),  k = 4))
+data_ca$group <- as.factor(cutree(hclust(distbouss, method = "ward.D"),  h = 20))
 
 ggplot(data_ca)+
   geom_point(aes(x = CA1, y = CA2, colour = group), size = 1.5)+
@@ -107,20 +109,52 @@ tplot <- data_ca %>%
          micro = (1.56 * fuco + 0.92 * peri)/wdp,
          nano = (4.8 * allo + 1.02 * but + 1.51 * hex)/wdp,
          pico = (1.51 * zea + 0.69 * t_chlb)/wdp) %>% 
-  summarise_at(vars(c(pico, nano, micro, t_chlb, fuco, zea, peri, allo, hex, but)), mean, na.rm = TRUE) %>% 
+  summarise_at(vars(c(pico, nano, micro, t_chlb, fuco, zea, peri, allo, hex, but, dv_chla)), mean, na.rm = TRUE) %>% 
   ungroup() %>% 
-  pivot_longer(t_chlb:but, names_to = 'pigment', values_to = 'concentration') %>% 
-  mutate(size = ifelse(pigment %in% c('zea', 't_chlb'), 'pico', ifelse(pigment %in% c('allo', 'hex', 'but'), 'nano', ifelse(pigment %in% c('fuco', 'peri'), 'micro', 'error'))))
+  pivot_longer(t_chlb:dv_chla, names_to = 'pigment', values_to = 'concentration') %>% 
+  mutate(size = ifelse(pigment %in% c('zea', 't_chlb', 'dv_chla'), 'pico', ifelse(pigment %in% c('allo', 'hex', 'but'), 'nano', ifelse(pigment %in% c('fuco', 'peri'), 'micro', 'error'))))
 
 tplot1 <- filter(tplot, group == '1')
 tplot2 <- filter(tplot, group == '2')
 tplot3 <- filter(tplot, group == '3')
-tplot4 <- filter(tplot, group == '4')
+#tplot4 <- filter(tplot, group == '4')
 
 
 
-g1 <- ggplot(data_to_plot)+
-  geom_point(aes(x = date, y = -depth, colour = group, size = t_chla))
+ga <- ggplot(data_to_plot)+
+  geom_point(aes(x = date, y = -depth, size = t_chla), colour = "Grey")+
+  geom_point(data = filter(data_to_plot, group == "1"), aes(x =date, y = -depth, size = t_chla), colour = "#e41a1c")+
+  scale_size(guide = "none")+
+  xlab("")+
+  theme_bw()+
+  ggtitle("Cluster 1")
+
+gb <- ggplot(data_to_plot)+
+  geom_point(aes(x = date, y = -depth, size = t_chla), colour = "Grey")+
+  geom_point(data = filter(data_to_plot, group == "2"), aes(x =date, y = -depth, size = t_chla), colour = "#377eb8")+
+  xlab("")+
+  ylab("")+
+  theme_bw()+
+  scale_size(guide = "none")+
+  ggtitle("Cluster 2")
+
+gc <- ggplot(data_to_plot)+
+  geom_point(aes(x = date, y = -depth, size = t_chla), colour = "Grey")+
+  geom_point(data = filter(data_to_plot, group == "3"), aes(x =date, y = -depth, size = t_chla), colour = "#4daf4a")+
+  scale_size(guide = "none")+
+  theme_bw()+
+  xlab("")+
+  ylab("")+
+  ggtitle("Cluster 3")
+
+#gd <- ggplot(data_to_plot)+
+# geom_point(aes(x = date, y = -depth, size = t_chla), colour = "Grey")+
+# geom_point(data = filter(data_to_plot, group == "4"), aes(x =date, y = -depth, size = t_chla), colour = "#984ea3")+
+# scale_size(guide = "none")+
+# theme_bw()+
+# xlab("")+
+# ylab("")+
+# ggtitle("Cluster 4")
 #create the three treeplot
 
 g2 <- ggplot(tplot1, aes(area = concentration, fill = size, subgroup = size, label = pigment))+
@@ -144,14 +178,14 @@ g4 <- ggplot(tplot3, aes(area = concentration, fill = size, subgroup = size, lab
   guides(fill = "none")+
   scale_fill_brewer(palette = 'Dark2')
 
-g5 <- ggplot(tplot4, aes(area = concentration, fill = size, subgroup = size, label = pigment))+
-  geom_treemap(layout = 'fixed')+
-  geom_treemap_subgroup_text(layout = 'fixed', place = 'middle', fontface = 'bold', size = 14)+
-  geom_treemap_text(layout = 'fixed', place = 'bottomright', 'size' = 11, colour = 'white', fontface = 'italic')+
-  guides(fill = "none")+
-  scale_fill_brewer(palette = 'Dark2')
+#g5 <- ggplot(tplot4, aes(area = concentration, fill = size, subgroup = size, label = pigment))+
+# geom_treemap(layout = 'fixed')+
+# geom_treemap_subgroup_text(layout = 'fixed', place = 'middle', fontface = 'bold', size = 14)+
+# geom_treemap_text(layout = 'fixed', place = 'bottomright', 'size' = 11, colour = 'white', fontface = 'italic')+
+# guides(fill = "none")+
+# scale_fill_brewer(palette = 'Dark2')
 
-g1 /(g2 | g3 | g4| g5)
+(ga|gb|gc) /(g2 | g3 | g4)
 
 diagpig <- c("t_chlb", "fuco", "zea", "peri", "allo", "hex", "but")
 
@@ -181,6 +215,8 @@ mf_cluster <- data_ca %>% select(group, f440_f470, f532_f470) %>%
   ungroup()
 
 data_ca <- data_ca %>% replace_na(list(bb700 = "120")) %>% 
+  replace_na(list(cdom = "55")) %>% 
+  replace_na(list(temp = 14)) %>% 
   mutate(cluster = paste("group", group, sep = "_"))
 write_csv(data_ca, "Boussole/Output/Data/Compiled/hplc_mf_clusterised.csv")
 
