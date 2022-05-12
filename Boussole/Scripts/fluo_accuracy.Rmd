@@ -1,0 +1,225 @@
+---
+title: "Clustering of HPLC samples"
+output:
+  html_document:
+    code_folding: "hide"
+---
+
+# Chla concentrration estimation with 3X1M fluorometer.
+
+The use of the 3x1m fluorometer rise new possibilities for estimating Chla from in situ fluorescence. We will investigate the lab results to see in what manner the multispectral can be correlated to Chla concentration in a more precise way than the "classic" fluorescence.</br>
+We recall that the lab work consisted of making different measurement of phytoplankton culutures. A dilution scale was made from the original culture. </br>
+in each dilution we have the following measurement : 3X1M, PAM and cytometrie <br>
+For two of them we have HPLC measurement. As we know the dilution factor we can retrieve Chla concentration for each of the dilutions.<br>
+The first thing is to take a look at the accuracy of the fluorescence estimation of [Chla]. We will look at the distribution of the F-to-Chla ratio. 
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+
+local_path <- here::here() #define the local path
+data_path <- paste(local_path, "Boussole/Data/labo/results_reshape.csv", sep ="/")
+
+results <- read_csv(data_path)
+
+
+```
+
+```{r message=FALSE, warning=FALSE}
+#define some pigment vec to ease the data manipulation later 
+pigments <- c("chl_c1_c2", "chl_c3", "peri", "but", "fuco", "diad", "diat", "zea", "dv_chlb", "chlb", "t_chlb", "dv_chla", "chla", "t_chla")
+
+result_long <- results %>%
+  rename("chl_c1_c2" = chlorophyll_c1_c2_mg_dvp,
+         "chl_c3" = chlorophyll_c3,
+         "peri" = peridinin,
+         "but" = x19_butanoyloxyfucoxanthin,
+         "fuco" = fucoxanthin,
+         "diad" = diadinoxanthin,
+         "diat" = diatoxanthin,
+         "zea" = zeaxanthin,
+         "dv_chlb" = divinyl_chlorophyll_b,
+         "chlb" = chlorophyll_b,
+         "dv_chla" = divinyl_chlorophyll_a,
+         "chla" = chlorophyll_a,
+         "t_chla" = chla_conc_spectro,
+         "f440" = "440nm_mean",
+         "f470" = "470nm_mean",
+         "f532" = "532nm_mean",
+         "fv_fm" = "Fv/Fm") %>% 
+  filter(!is.na(number_cells)) %>% 
+  pivot_longer(pigments, names_to = "pigment", values_to = "concentration") %>% 
+  mutate(cell_conc = concentration/number_cells,
+         "f440_f470" = f440/f470,
+         "f532_f470" = f532/f470,
+         chla_fluo = f470 * 0.007) %>% 
+  select(strain, replicate, dilution, f440, f470, f532, f440_f470, f532_f470, number_cells, fv_fm, pigment, concentration, cell_conc, chla_fluo)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+pig_cell = paste(result_long$pigment, "_cell", sep ="")
+
+result_wide <- result_long %>% 
+  select(-cell_conc) %>% 
+  pivot_wider(names_from = pigment, values_from = concentration)
+result_cell_conc <-  result_long %>%
+  mutate(pig_cell = paste(pigment, "_cell", sep = "")) %>%
+  select(-concentration, -pigment) %>% 
+  pivot_wider(names_from = pig_cell, values_from = cell_conc)
+  
+result_tot <- left_join(result_wide, result_cell_conc) %>% mutate(common_name = case_when(
+  strain %in% c("RCC1717", "RCC76", "RCC4213") ~ "Diatom",
+  strain %in% c("RCC162", "RCC156", "PCC9511") ~ "Prochlorococcus",
+  strain %in% c("RCC2379", "RCC2374", "RCC2319") ~ "Synechococcus",
+  strain %in% c("RCC100") ~ "Pelagophyte",
+  strain %in% c("RCC3006") ~ "Dino"
+))
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+result_tot <- result_tot %>% mutate(slope_factor = chla_fluo/t_chla)
+result_tot$fv_fm[result_tot$fv_fm < 0] <- 0
+
+ggplot(filter(result_tot, t_chla > 0.2))+
+  geom_point(aes(x = t_chla, y =chla_fluo))+
+  geom_line(aes(x = t_chla, y = t_chla))+
+  scale_x_log10()+
+  scale_y_log10()+
+  theme_bw()
+```
+</br>We can see that we are quite far from the perfect fit. Fluorescence tend to overestimate Chla when the concentration is lower than 1 and underestimate otherwise. </br>
+As we proceed by dilution we can hypothesized that the impact of the stress was greater when the dilution was high. We can llok at the Fv/Fm value for each dilution.<br/>
+```{r}
+result_tot$dilution <-  factor( result_tot$dilution, levels = c("Cmere", "0", "0bis", "1", "2", "3", "4", "5"))
+ggplot(filter(result_tot, dilution != "0bis"))+
+  geom_point(aes(x = dilution, y = fv_fm))+
+  theme_bw()
+```
+</br>Indeed, we notice that the Fv/Fm value decrease significantly with the dilution. Highe the dilution factor is, lower will be the Fv/Fm. A drop of the Fv/Fm value is interpreted as the result of a stress on the cell (a nutrient depletion for instance). Here, we may face a stress due to the change of medium. <br/>
+This change of Fv/Fm must be certainly linked to the slope factor, we check this with a simple plot.
+```{r}
+ggplot(filter(result_tot, fv_fm > 0.1 & slope_factor < 10 & slope_factor > 0.2))+
+  geom_point(aes(x = fv_fm, y = slope_factor))+
+  scale_x_log10()+
+  scale_y_log10()+
+  theme_bw()
+```
+</br>The two variables seems correlated. We can test it with a spearman rank test, as they are not normally distributed.
+```{r}
+#non parametric correlation test
+data_for_est <- select(result_tot, slope_factor, fv_fm) %>% na.omit()
+test <- cor.test(data_for_est$slope_factor, data_for_est$fv_fm, method = "spearman")
+test
+```
+
+</br>Indeed there is a significant correlation between the slope factor and the Fv/Fm value. </br>
+The 3X1m can be used to estimate Fv/Fm from the correlation between the F532/F470 ratio, as shown in the plot below.
+
+```{r}
+ggplot(filter(result_tot, fv_fm > 0))+
+  geom_point(aes(x = fv_fm, y = f532_f470))+
+  scale_colour_viridis_c()+
+  theme_bw()
+```
+</br>With the following linear regression coefficients.
+```{r}
+fv_regression = lm(fv_fm ~ f532_f470, data = result_tot)
+
+summary(fv_regression)
+```
+</br>But can we transpose those correlation directly on our in situ data ?<br/>
+Let's check this out. We first load the bouss HPLC/echo multiplexer dataset, and take a look at the slope factor value.
+
+```{r}
+data_path <- paste(local_path, "Boussole/Output/Data/Compiled/hplc_mf_clusterised.csv", sep ="/")
+data_ca <- read_csv(data_path)
+data_ca$fv_fm = predict(fv_regression, data_ca)
+
+data_ca <- data_ca %>% mutate(chla_fluo = fluo_470 * 0.007,
+                               slope_factor = chla_fluo/t_chla)
+
+ggplot(filter(data_ca, slope_factor > 0))+
+  geom_point(aes(x = date, y = -depth, colour = slope_factor), size = 4)+
+  scale_size(guide = "none")+
+  xlab("")+
+  theme_bw()+
+  scale_color_viridis_c(trans = "log")
+```
+<br/>For the sake of visibility we used a log color scale. The higher values of the Slope Factor occurs at depth in winter or at the surface in summer. Interestingly, no NPQ correction was performed, so we expected a low slope factor in the surface in summer. <br>
+As we demonstrated in the lab that f532/f470 was related to the Fv/Fm value we can use this relationship to estimate Fv/Fm insitu and compare its distribution with the slope factor.
+
+```{r}
+ggplot(filter(data_ca, slope_factor > 0))+
+  geom_point(aes(x = date, y = -depth, colour = fv_fm), size = 4)+
+  scale_size(guide = "none")+
+  xlab("")+
+  theme_bw()+
+  ggtitle("Cluster 1")+
+  scale_color_viridis_c()
+```
+</br>We observe higher value of Fv/Fm during the bloom of spring and in the summer DCM (see clustering notebook for pigment succession). This ditribution is the opposite of the slope factor, which confirm our lab observation.<b/>
+This relation is presented in the figure below, with an  SVM regression fit. 
+
+
+```{r}
+rmse <- function(error){
+  sqrt(mean(error^2))
+}
+```
+
+
+```{r}
+library(e1071)
+
+svmodel <- svm(slope_factor ~ fv_fm, data = data_ca, gamma = 0.1)
+x_new <- data.frame("fv_fm" = seq(0,0.5, length.out = nrow(data_ca)))
+
+x_new$fitted <- predict(svmodel, x_new)
+
+ggplot(filter(data_ca, slope_factor > 0 & slope_factor < 10))+
+  geom_point(aes(x = fv_fm, y = slope_factor))+
+  geom_line(data = x_new, aes(y = fitted, x = fv_fm))+
+  theme_bw()
+
+data_ca$fitted_slope <- svmodel$fitted
+
+error <- data_ca$slope_factor - svmodel$fitted
+rmse(error)
+```
+
+</br>from this model, we can predict the slope factor (i.e. a correction factor) from the F532_F470 value. We can try to apply it on fluorescence data to correction chla concentration estimation; <br/>
+
+```{r}
+ggplot(data_ca)+
+  geom_point(aes(x = t_chla, y = chla_fluo, colour = "fluo"))+
+  geom_point(aes(x = t_chla, y = chla_fluo/ fitted_slope, colour = "correction"))+
+  geom_line(aes(x = t_chla, y = t_chla), colour = "red")+
+  theme_bw()+
+  scale_y_log10()+
+  scale_x_log10()
+
+error_fluo <- data_ca$t_chla - data_ca$chla_fluo
+rmse_fluo <- rmse(error_fluo)
+
+error_fluo_corrected <- data_ca$t_chla - (data_ca$chla_fluo/data_ca$fitted_slope)
+rmse_fluo_corrected <- rmse(error_fluo_corrected)
+
+print(paste("RMSE of the fluorescence measurement is ", round(rmse_fluo, 2),
+            "mg.m-3, while it is only", round(rmse_fluo_corrected, 2), "mg.m-3 with the correction"))
+```
+</br>Indeed, we get a much better estimation of Chla.<br/>
+See bellow, for an exemple on a profile.
+```{r}
+ggplot(filter(data_ca, bouss == 233))+
+  geom_point(aes(x = chla_fluo, y = -depth, colour = "fluo"))+
+  geom_point(aes(x = t_chla, y = - depth, colour = "chla"))+
+  geom_point(aes(x = chla_fluo / fitted_slope, y = -depth, colour = "fluo corrected"))+
+  theme_bw()+
+  ggtitle("August 2021")
+```
+
+## Conclusion
+The multispectral fluorescence may be used to estimate a proxy of Fv/Fm but also a correction factor for the estimation of Chla concentration. The ratio between f532 and f470 is much more informativ than the ratio between f440 and f470. <br/>
+Why is F532/F470 correlated to Fv/Fm ? My hypothesis is that F532 is less sensitiv to the stress than f470. When the cell is stress, fv/Fm decrease (Liu et al. (2011)), meaning that the difference between F0 and Fm is smaller, F0 is increasing. F0 being the fluorescence emitted in the dark without DCMU. 
+
+
