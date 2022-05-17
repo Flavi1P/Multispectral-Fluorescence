@@ -1,6 +1,6 @@
 library(tidyverse)
 library(readxl)
-source("~/Documents/these/mf/Boussole/Scripts/read_hplc_bouss.R")
+source("~/Boussole/Scripts/read_hplc_bouss.R")
 
 pigments <- c("chl_c1_c2", "chl_c3", "peri", "but", "fuco", "neox", "prasi", "viola", "hex", "diad", "allo", "diat", "zea", "lutein", "dv_chlb", "chlb", "t_chlb", "dv_chla", "chla", "t_chla")
 pigtosum <- c("chl_c1_c2", "chl_c3", "peri", "but", "fuco", "neox", "prasi", "viola", "hex", "diad", "allo", "diat", "zea", "lutein", "t_chlb", "t_chla")
@@ -33,6 +33,7 @@ merge_data <- left_join(hplc, ctd, by = c("bouss", "depth")) %>%
 #write_csv(merge_data, "Boussole/Output/Data/Compiled/echo_hplc_bouss.csv")
 
 pigment_to_plot <- pigtosum[pigtosum != "t_chla"]
+pigment_to_plot <- c(pigment_to_plot, "chla")
 data_to_plot <- select(merge_data, bouss, date, depth, sumpig, pigments) %>% 
   mutate_at(all_of(pigment_to_plot), ~./sumpig) %>%
   pivot_longer(all_of(pigment_to_plot), values_to = "proportion", names_to = "pigment")
@@ -43,6 +44,10 @@ ggplot(data_to_plot)+
   scale_colour_viridis_c()+
   facet_wrap(.~pigment)
 
+ggplot(filter(data_to_plot, pigment == "chla"))+
+  geom_point(aes(x = date, y = -depth, colour = proportion, size = t_chla))+
+  scale_colour_viridis_c()+
+  theme_bw()
 
 # clustering --------------------------------------------------------------
 library(vegan)
