@@ -26,7 +26,7 @@ hplc <- read_csv(data_path)
 
 #define some pigment vec to ease the data manipulation later 
 pigments <- c("chl_c1_c2", "chl_c3", "peri", "but", "fuco", "neox", "prasi", "viola", "hex", "diad", "allo", "diat", "zea", "lutein", "dv_chlb", "chlb", "t_chlb", "dv_chla", "chla", "t_chla")
-pigtosum <- c("chl_c1_c2", "chl_c3", "peri", "but", "fuco", "neox", "prasi", "viola", "hex", "diad", "allo", "diat", "zea", "lutein", "t_chlb", "t_chla")
+pigtosum <- c("chl_c1_c2", "chl_c3", "peri", "but", "fuco", "neox", "prasi", "viola", "hex", "diad", "allo", "diat", "zea", "lutein", "t_chlb")
 pigment_to_plot <- pigments[!pigments %in% c("t_chla", "t_chlb", "chla")]
 data_to_plot <- select(hplc, bouss, date, depth, sumpig, pigments) %>% 
   mutate_at(all_of(pigment_to_plot), ~./sumpig) %>%
@@ -241,5 +241,171 @@ result_tot <- left_join(result_wide, result_cell_conc) %>% mutate(common_name = 
 
 
 
+# Comparison to lab data
 
+<br/>
+In order to better understand the difference between the *In-Situ* data and the monospecific lab culture we can perform a CA on the lab cultures and project the *In-Situ* on it. This will give us insight in the pigment composition of the different cultures and on how different they are.
+<br/>
+
+```{r message=FALSE, warning=FALSE}
+library(FactoMineR)
+pig_ca <- result_tot %>% select(chl_c1_c2:dv_chla, common_name, f440_f470, f532_f470) %>% mutate(pig_sum = rowSums(.[,1:12])) %>% 
+  filter(pig_sum > 0) %>% 
+  select(-pig_sum)
+
+pig_insitu <- data_ca %>% select(all_of(colnames(pig_ca[,1:12])), group, f440_f470, f532_f470) %>%
+  rename("common_name" = group)
+
+pig_tot <- bind_rows(pig_ca, pig_insitu)
+index <- which(pig_tot$common_name %in%  unique(data_ca$group))
+
+afc <- CA(select(pig_tot, -common_name, -f440_f470, -f532_f470), row.sup = index, graph = FALSE)
+
+pig_and_name <- result_tot %>% select(common_name, chl_c1_c2:dv_chla, f440_f470, f532_f470) %>% 
+  right_join(.,pig_tot)
+
+```
+
+```{r message=FALSE, warning=FALSE}
+
+library(scales)
+library(grid)
+library(gridExtra)
+
+# extract some parts for plotting
+PC1 <- afc$row$coord[,1]
+PC2 <- afc$row$coord[,2]
+labs <- rownames(afc$row$coord)
+PCs <- data.frame(cbind(PC1,PC2))
+rownames(PCs) <- labs
+
+# Now get supplementary categorical variables
+supPC1 <- afc$row.sup$coor[,1]
+supPC2 <- afc$row.sup$coor[,2]
+clabs <- rownames(afc$row.sup$coor)
+cPCs <- data.frame(cbind(supPC1,supPC2))
+rownames(cPCs) <- clabs
+colnames(cPCs) <- colnames(PCs)
+
+#
+# Now do extract variables
+#
+vPC1 <- afc$col$coord[,1]
+vPC2 <- afc$col$coord[,2]
+vlabs <- rownames(afc$col$coord)
+vPCs <- data.frame(cbind(vPC1,vPC2))
+rownames(vPCs) <- vlabs
+colnames(vPCs) <- colnames(PCs)
+
+```
+
+```{r fig.align="center", fig.cap="Figure: CA porjection of Monospecific lab HPLC data, with insitu HPLC data as supplementary observation", fig.height=7, fig.width=10, message=FALSE, warning=FALSE}
+library(ggrepel)
+coord_df <- bind_rows(PCs, cPCs)
+
+pig_and_name <- bind_cols(pig_and_name, coord_df)
+
+ggplot(pig_and_name)+
+  geom_point(aes(x = PC1, y = PC2, colour = common_name))+
+  geom_segment(aes(x = 0, y = 0, xend =PC1 * 0.8, yend = PC2 * 0.8), data = vPCs)+
+  geom_text_repel(aes(x = PC1 * 0.8, y = PC2 * 0.8, label=rownames(vPCs), fontface = 2), data = vPCs)+
+  scale_color_brewer(palette = "Set1", name = "Taxa or Cluster")+
+  xlab("CA1")+
+  ylab("CA2")+
+  theme_bw()
+
+```
+
+<br> We notice that the different cultures are well distinguished into three different poles. The Proch and Syn are far on the left of CA1, with typical picophytoplankton pigment (Chlb, zea and Dv-Chla), on the other side of this CA1 we find Diatoms and Pelagophyte with high concentration of fuco, but and chlc3. finally, dinoflagellates are far up on the CA2, due to their unique composition with peridinin. <br/>
+The *In-Situ* data are distributed all along the CA1, due to a lack of peridinin in the dataset. All the samples are closer to the center than lab samples because communities are mixed. The CA1 distinguished well the 2nd cluster from the 1st and 3rd.<br/>
+We can notice a big drawback from the lab dataset, the lack of 19'-HF in the samples, which represent a significant part of the pigment seasonal and vertical variability at Boussole. <br/>
+From there, we can hypothesize that if the 3X1M is pigment sensitiv, it will predict the 2nd cluster much better than the 2 other.
+<br/>
+<br/>
+We can take a look at the same projection without the Dinoflagellates, that may be consider as outliers in the dataset.
+<br/>
+
+```{r message=FALSE, warning=FALSE}
+library(FactoMineR)
+ca_nodino <- filter(pig_ca, common_name != "Dino")
+
+pig_tot_nodino <- bind_rows(ca_nodino, pig_insitu)
+index_nodino <- which(pig_tot_nodino$common_name %in%  unique(data_ca$group))
+
+afc_nodino <- CA(select(pig_tot_nodino, -common_name, -f440_f470, -f532_f470), row.sup = index_nodino, graph = FALSE)
+
+pig_and_name_nodino <- result_tot %>% select(common_name, chl_c1_c2:dv_chla, f440_f470, f532_f470) %>% 
+  filter(common_name != "Dino") %>% right_join(.,pig_tot_nodino)
+
+# extract some parts for plotting
+PC1 <- afc_nodino$row$coord[,1]
+PC2 <- afc_nodino$row$coord[,2]
+labs <- rownames(afc_nodino$row$coord)
+PCs <- data.frame(cbind(PC1,PC2))
+rownames(PCs) <- labs
+
+# Now get supplementary categorical variables
+supPC1 <- afc_nodino$row.sup$coor[,1]
+supPC2 <- afc_nodino$row.sup$coor[,2]
+clabs <- rownames(afc_nodino$row.sup$coor)
+cPCs <- data.frame(cbind(supPC1,supPC2))
+rownames(cPCs) <- clabs
+colnames(cPCs) <- colnames(PCs)
+
+#
+# Now do extract variables
+#
+vPC1 <- afc_nodino$col$coord[,1]
+vPC2 <- afc_nodino$col$coord[,2]
+vlabs <- rownames(afc_nodino$col$coord)
+vPCs <- data.frame(cbind(vPC1,vPC2))
+rownames(vPCs) <- vlabs
+colnames(vPCs) <- colnames(PCs)
+
+```
+
+```{r fig.align="center", fig.cap="Figure: CA porjection of Monospecific lab HPLC data, with insitu HPLC data as supplementary observation", fig.height=7, fig.width=10, message=FALSE, warning=FALSE}
+library(ggrepel)
+coord_df <- bind_rows(PCs, cPCs)
+
+pig_and_name_nodino <- bind_cols(pig_and_name_nodino, coord_df)
+
+ggplot(pig_and_name_nodino)+
+  geom_point(aes(x = PC1, y = PC2, colour = common_name))+
+  geom_segment(aes(x = 0, y = 0, xend =PC1 * 0.8, yend = PC2 * 0.8), data = vPCs)+
+  geom_text_repel(aes(x = PC1 * 0.8, y = PC2 , label=rownames(vPCs), fontface = 2), data = vPCs)+
+  scale_color_brewer(palette = "Set1", name = "Taxa or Cluster")+
+  xlab("CA1")+
+  ylab("CA2")+
+  theme_bw()
+
+```
+
+<br/>
+This time the second CA can separate the picophytoplankton population. The surface picophyto (a.k.a. Synechococcus) with zea and div-chla and the deep pico (a.kk.a Prochlorococcus) with Chlb. We can see that this time, the separation between the 3 insitu cluster is improved. <br/>
+The idea would be to assign to lab data the equivalent insitu cluster and train a model to recognize it from 3X1M data. The test data would be the insitu 3X1M data. The idea is that strong contrasted signal obtained from monospecific cultur will be a much better train set than insitu data. <br/>
+
+```{r message=FALSE, warning=FALSE}
+
+train_set <- ca_nodino %>% select(common_name, f440_f470, f532_f470) %>% 
+  mutate(cluster = case_when(
+    common_name == "Prochlorococcus" ~ "cluster_1",
+    common_name %in% c("Pelagophyte", "Diatom") ~ "cluster_2",
+    common_name == "Synechococcus" ~ "cluster_3")) %>% 
+  select(- common_name)
+
+test_set <- pig_insitu %>% select(common_name, f440_f470, f532_f470) %>% 
+  mutate(cluster = case_when(
+    common_name == "1" ~ "cluster_1",
+    common_name == "2" ~ "cluster_2",
+    common_name == "3" ~ "cluster_3")) %>% 
+  select(- common_name)
+
+path_train_set <- paste(local_path, "Boussole/Output/Data/Compiled/train_cluster_lab.csv", sep ="/")
+path_test_set <- paste(local_path, "Boussole/Output/Data/Compiled/test_cluster_insitu.csv", sep ="/")
+
+write_csv(train_set, path_train_set)
+write_csv(test_set, path_test_set)
+
+```
 
