@@ -61,7 +61,6 @@ data_ca <- bind_cols(hplc, scores)
 
 pigscore <- data.frame(scores(AFC, choices = c(1,2,3), display = "species"))
 
-
 ggplot(data_ca)+
   geom_point(aes(x = CA1, y = CA2, colour = depth, size = t_chla))+
   geom_segment(aes(x = 0, xend = CA1, y = 0, yend = CA2), data = pigscore)+
