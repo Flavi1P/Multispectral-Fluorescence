@@ -20,7 +20,7 @@ At first, we load the HPLC data, that have been already match with 3X1M data.
 library(tidyverse)
 
 local_path <- here::here() #define the local path
-data_path <- paste(local_path, "Boussole/Output/Data/Compiled/echo_hplc_bouss.csv", sep ="/")
+data_path <- paste(local_path, "Boussole/Output/Data/ctd_echo_hplc_cp.csv", sep ="/")
 
 hplc <- read_csv(data_path)
 
@@ -29,7 +29,7 @@ pigments <- c("chl_c1_c2", "chl_c3", "peri", "but", "fuco", "neox", "prasi", "vi
 pigtosum <- c("chl_c1_c2", "chl_c3", "peri", "but", "fuco", "neox", "prasi", "viola", "hex", "diad", "allo", "diat", "zea", "lutein", "t_chlb")
 pigment_to_plot <- pigments[!pigments %in% c("t_chla", "t_chlb", "chla")]
 data_to_plot <- select(hplc, bouss, date, depth, sumpig, pigments) %>% 
-  mutate_at(all_of(pigment_to_plot), ~./sumpig) %>%
+  mutate_at(all_of(pigment_to_plot), ~./t_chla) %>%
   pivot_longer(all_of(pigment_to_plot), values_to = "proportion", names_to = "pigment")
 ```
 

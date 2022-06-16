@@ -1,6 +1,6 @@
 library(tidyverse)
 library(readxl)
-source("~/Boussole/Scripts/read_hplc_bouss.R")
+source("Boussole/Scripts/read_hplc_bouss.R")
 
 pigments <- c("chl_c1_c2", "chl_c3", "peri", "but", "fuco", "neox", "prasi", "viola", "hex", "diad", "allo", "diat", "zea", "lutein", "dv_chlb", "chlb", "t_chlb", "dv_chla", "chla", "t_chla")
 pigtosum <- c("chl_c1_c2", "chl_c3", "peri", "but", "fuco", "neox", "prasi", "viola", "hex", "diad", "allo", "diat", "zea", "lutein", "t_chlb", "t_chla")
@@ -52,12 +52,14 @@ ggplot(filter(data_to_plot, pigment == "chla"))+
 # clustering --------------------------------------------------------------
 library(vegan)
 
+merge_data_with_cp <-  read_csv("Boussole/Output/Data/ctd_echo_hplc_cp.csv")
+
 pigments_afc <- pigments[pigments != "t_chla" & pigments != "t_chlb"]
 
-AFC <- cca(select(merge_data, all_of(pigments_afc)))
+AFC <- cca(select(merge_data_with_cp, all_of(pigments_afc)))
 
 scores <- data.frame(scores(AFC, choices = c(1,2,3), display = "site"))
-data_ca <- bind_cols(merge_data, scores)
+data_ca <- bind_cols(merge_data_with_cp, scores)
 
 pigscore <- data.frame(scores(AFC, choices = c(1,2,3), display = "species"))
 
@@ -85,12 +87,13 @@ ggplot(data_ca)+
   coord_equal()
 
 
-data_to_plot <- select(data_ca, bouss, date, depth, sumpig, pigments, group) %>% 
+data_to_plot <- select(data_ca, bouss, date, depth, sumpig, pigments, cp, group) %>% 
   mutate_at(all_of(pigment_to_plot), ~./sumpig) %>%
   pivot_longer(all_of(pigment_to_plot), values_to = "proportion", names_to = "pigment")
 
+
 ggplot(data_to_plot)+
-  geom_point(aes(x = date, y = -depth, colour = group, size = t_chla))
+  geom_point(aes(x = date, y = -depth, colour = group, size = cp))
 
 ggplot(data_to_plot)+
   geom_point(aes(x = date, y = -depth, colour = proportion, size = t_chla))+
@@ -207,7 +210,6 @@ cluster_viz <- data_ca %>% select(diagpig, group, sumpig) %>%  group_by(group) %
                           funs == "2" ~ "sd_concentration")) %>% 
   pivot_wider( names_from = funs, values_from = value)
   
-c("fuco", "peri", "hex", "but", "allo", "zea", "t_chlb")
 
 ggplot(cluster_viz)+
   geom_bar(aes(x = pigment , y = mean_concentration), stat = "identity")+
@@ -219,9 +221,10 @@ mf_cluster <- data_ca %>% select(group, f440_f470, f532_f470) %>%
   summarise_all(c(mean, sd), na.rm = TRUE) %>% 
   ungroup()
 
-data_ca <- data_ca %>% replace_na(list(bb700 = "120")) %>% 
-  replace_na(list(cdom = "55")) %>% 
+data_ca <- data_ca %>% replace_na(list(bb700 = 120)) %>% 
+  replace_na(list(cdom = 55)) %>% 
   replace_na(list(temp = 14)) %>% 
-  mutate(cluster = paste("group", group, sep = "_"))
-write_csv(data_ca, "Boussole/Output/Data/Compiled/hplc_mf_clusterised.csv")
+  mutate(cluster = paste("group", group, sep = "_")) %>% 
+  filter(cp < 10)
+write_csv(data_ca, "Boussole/Output/Data/Compiled/hplc_mf_clusterised_cp.csv")
 
