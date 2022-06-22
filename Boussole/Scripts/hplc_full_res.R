@@ -226,5 +226,52 @@ data_ca <- data_ca %>% replace_na(list(bb700 = 120)) %>%
   replace_na(list(temp = 14)) %>% 
   mutate(cluster = paste("group", group, sep = "_")) %>% 
   filter(cp < 10)
+
+data_ca_bis <- data_ca %>% filter(group == 2) %>% select(-CA1, -CA2, -CA3)
+AFCbis <- cca(select(data_ca_bis, all_of(pigments_afc)))
+
+scores <- data.frame(scores(AFCbis, choices = c(1,2,3), display = "site"))
+data_ca_bis <- bind_cols(data_ca_bis, scores)
+
+pigscore <- data.frame(scores(AFCbis, choices = c(1,2,3), display = "species"))
+
+ggplot(data_ca_bis)+
+  geom_point(aes(x = CA1, y = CA2, colour = depth, size = t_chla))+
+  geom_segment(aes(x = 0, xend = CA1, y = 0, yend = CA2), data = pigscore)+
+  ggrepel::geom_text_repel(aes(x = CA1, y = CA2, label = rownames(pigscore)), data = pigscore)+
+  scale_color_viridis_c(direction = -1)+
+  xlim(-2,2)+
+  ylim(-2,2)+
+  theme_bw()
+
+distbouss <- dist(select(data_ca_bis, f440_f470, f532_f470, CA1, CA2))
+
+plot(hclust(distbouss, method = "ward.D2"))
+
+data_ca_bis$new_cluster <- as.factor(cutree(hclust(distbouss, method = "ward.D2"),  h = 10))
+
+data_ca_bis <- select(data_ca_bis, -CA1, -CA2, -CA3)
+
+data_clust <- left_join(data_ca, data_ca_bis)
+
+data_clust$new_cluster <- as.character(data_clust$new_cluster)
+data_clust$new_cluster[is.na(data_clust$new_cluster)] <- "99"
+
+data_clust <- data_clust %>% mutate(cluster = case_when(group == "1" ~ "0",
+                                                        group == "2" ~ new_cluster,
+                                                        group == "3" ~ "3")) %>% 
+  select(-group, -new_cluster)
+
+ggplot(data_clust)+
+  geom_point(aes(x = CA1, y = CA2, colour = cluster))+
+  geom_segment(aes(x = 0, xend = CA1, y = 0, yend = CA2), data = pigscore)+
+  ggrepel::geom_text_repel(aes(x = CA1, y = CA2, label = rownames(pigscore)), data = pigscore)+
+  scale_color_viridis_d(direction = -1)+
+  xlim(-2,2)+
+  ylim(-2,2)+
+  theme_bw()
+
+
+
 write_csv(data_ca, "Boussole/Output/Data/Compiled/hplc_mf_clusterised_cp.csv")
 
