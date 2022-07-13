@@ -422,7 +422,7 @@ In order to better understand the difference between the *In-Situ* data and the 
 ```{r message=FALSE, warning=FALSE}
 library(FactoMineR)
 pig_ca <- result_tot %>% select(chl_c1_c2:dv_chla, common_name, f440_f470, f532_f470) %>% mutate(pig_sum = rowSums(.[,1:12])) %>% 
-  filter(pig_sum > 0) %>% 
+  filter(pig_sum > 0 & common_name != "Dino") %>% 
   select(-pig_sum)
 
 pig_insitu <- data_clust %>% select(all_of(colnames(pig_ca[,1:12])), cluster, f440_f470, f532_f470) %>%
@@ -469,24 +469,37 @@ vPCs <- data.frame(cbind(vPC1,vPC2))
 rownames(vPCs) <- vlabs
 colnames(vPCs) <- colnames(PCs)
 
+coord_df <- bind_rows(PCs, cPCs)
+
+pig_and_name <- bind_cols(pig_and_name, coord_df)
+
+pig_and_name <- pig_and_name %>% mutate(common_name = case_when(common_name == "0" ~ "Cluster 1",
+                                                                common_name == "1" ~ "Cluster 2",
+                                                                common_name == "2" ~ "Cluster 3",
+                                                                common_name == "3" ~ "Cluster 4",
+                                                                TRUE ~ common_name))
 ```
 
 ```{r fig.align="center", fig.cap="Figure: CA porjection of Monospecific lab HPLC data, with insitu HPLC data as supplementary observation", fig.height=7, fig.width=10, message=FALSE, warning=FALSE}
 library(ggrepel)
-coord_df <- bind_rows(PCs, cPCs)
 
-pig_and_name <- bind_cols(pig_and_name, coord_df)
 
 ggplot(pig_and_name)+
   geom_point(aes(x = PC1, y = PC2, colour = common_name))+
   geom_segment(aes(x = 0, y = 0, xend =PC1 * 0.8, yend = PC2 * 0.8), data = vPCs)+
   geom_text_repel(aes(x = PC1 * 0.8, y = PC2 * 0.8, label=rownames(vPCs), fontface = 2), data = vPCs)+
   scale_color_brewer(palette = "Set1", name = "Taxa or Cluster")+
-  xlab("CA1")+
-  ylab("CA2")+
-  theme_bw()
+  xlab("CA1 (60%)")+
+  ylab("CA2 (18.5%)")+
+  theme_bw(base_size = 16)
+
+path_to_plot <- paste(local_path, "Boussole/Output/Plots/afc.png", sep = "/")
+
+ggsave(path_to_plot, width = 20, height = 13, dpi = 300, units = "cm")
 
 ```
+
+
 
 <br> We notice that the different cultures are well distinguished into three different poles. The Proch and Syn are far on the left of CA1, with typical picophytoplankton pigment (Chlb, zea and Dv-Chla), on the other side of this CA1 we find Diatoms and Pelagophyte with high concentration of fuco, but and chlc3. finally, dinoflagellates are far up on the CA2, due to their unique composition with peridinin. <br/>
 The *In-Situ* data are distributed all along the CA1, due to a lack of peridinin in the dataset. All the samples are closer to the center than lab samples because communities are mixed. The CA1 distinguished well the 2nd cluster from the 1st and 3rd.<br/>

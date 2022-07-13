@@ -201,6 +201,7 @@ pigment_mean <- paste(diagpig, "fn1", sep = "_")
 pigment_sd <- paste(diagpig, "fn2", sep = "_")
 pigment_mean_sd <- c(pigment_mean, pigment_sd)
 
+
 cluster_viz <- data_ca %>% select(diagpig, group, sumpig) %>%  group_by(group) %>%
   mutate_at(all_of(diagpig), ~./sumpig) %>% 
   summarise_all(c(mean, sd), na.rm = "TRUE") %>% ungroup() %>% 
@@ -227,10 +228,10 @@ data_ca <- data_ca %>% replace_na(list(bb700 = 120)) %>%
   mutate(cluster = paste("group", group, sep = "_")) %>% 
   filter(cp < 10)
 
-data_ca_bis <- data_ca %>% filter(group == 2) %>% select(-CA1, -CA2, -CA3)
+data_ca_bis <- data_ca %>% filter(group == 2) %>% select(-CA1, -CA2, -CA3, -group)
 AFCbis <- cca(select(data_ca_bis, all_of(pigments_afc)))
 
-scores <- data.frame(scores(AFCbis, choices = c(1,2,3), display = "site"))
+scores <- data.frame(scores(AFCbis, choices = c(1,2), display = "site"))
 data_ca_bis <- bind_cols(data_ca_bis, scores)
 
 pigscore <- data.frame(scores(AFCbis, choices = c(1,2,3), display = "species"))
@@ -244,13 +245,14 @@ ggplot(data_ca_bis)+
   ylim(-2,2)+
   theme_bw()
 
-distbouss <- dist(select(data_ca_bis, f440_f470, f532_f470, CA1, CA2))
+distbouss <- dist(select(data_ca_bis, CA1, CA2))
 
 plot(hclust(distbouss, method = "ward.D2"))
 
 data_ca_bis$new_cluster <- as.factor(cutree(hclust(distbouss, method = "ward.D2"),  h = 10))
 
-data_ca_bis <- select(data_ca_bis, -CA1, -CA2, -CA3)
+data_ca_bis <- select(data_ca_bis, -CA1, -CA2)
+
 
 data_clust <- left_join(data_ca, data_ca_bis)
 
@@ -383,7 +385,190 @@ g4 <- ggplot(tplot3, aes(area = concentration, fill = size, subgroup = size, lab
 
 (ga|gb|gc|gd ) /(g1|g2 | g3 | g4)
 
-ggsave("Boussole/Output/Plots/cluster.png", width = 20, height = 13, dpi = 300, units = "cm")
+#ggsave("Boussole/Output/Plots/cluster.png", width = 20, height = 13, dpi = 300, units = "cm")
 
-write_csv(data_clust, "Boussole/Output/Data/Compiled/hplc_mf_clusterised_cp.csv")
+#write_csv(data_clust, "Boussole/Output/Data/Compiled/hplc_mf_clusterised_cp.csv")
 
+
+# create a 3 and 2 cluster dataset ----------------------------------------
+
+merge_data_with_cp <-  read_csv("Boussole/Output/Data/ctd_echo_hplc_cp.csv")
+
+pigments_afc <- pigments[pigments != "t_chla" & pigments != "t_chlb"]
+
+AFC <- cca(select(merge_data_with_cp, all_of(pigments_afc)))
+
+scores <- data.frame(scores(AFC, choices = c(1,2,3), display = "site"))
+data_ca <- bind_cols(merge_data_with_cp, scores)
+
+pigscore <- data.frame(scores(AFC, choices = c(1,2,3), display = "species"))
+
+data_ca <- data_ca %>% mutate("f532_f440" = fluo_532 /fluo_440)
+distbouss <- dist(select(data_ca, f440_f470, f532_f470, CA1, CA2))
+
+plot(hclust(distbouss, method = "ward.D"))
+
+data_ca$group <- as.factor(cutree(hclust(distbouss, method = "ward.D"),  k = 3))
+
+
+# cluster visualization ---------------------------------------------------
+
+cluster_viz <- data_ca %>% select(pigment_to_plot, group) %>%  group_by(group) %>%
+  summarise_all(mean, na.rm = "TRUE") %>% ungroup() %>% 
+  pivot_longer(all_of(pigment_to_plot), values_to = "concentration", names_to = "pigment")
+
+tplot <- data_ca %>% 
+  group_by(group) %>% 
+  mutate(wdp = 1.56 * fuco + 0.92 * peri + 4.8 * allo + 1.02 * but + 1.12 * hex + 1.51 * zea + 0.69 * t_chlb,
+         micro = (1.56 * fuco + 0.92 * peri)/wdp,
+         nano = (4.8 * allo + 1.02 * but + 1.51 * hex)/wdp,
+         pico = (1.51 * zea + 0.69 * t_chlb)/wdp) %>% 
+  summarise_at(vars(c(pico, nano, micro, t_chlb, fuco, zea, peri, allo, hex, but, dv_chla)), mean, na.rm = TRUE) %>% 
+  ungroup() %>% 
+  pivot_longer(t_chlb:dv_chla, names_to = 'pigment', values_to = 'concentration') %>% 
+  mutate(size = ifelse(pigment %in% c('zea', 't_chlb', 'dv_chla'), 'pico', ifelse(pigment %in% c('allo', 'hex', 'but'), 'nano', ifelse(pigment %in% c('fuco', 'peri'), 'micro', 'error'))))
+
+tplot1 <- filter(tplot, group == '1')
+tplot2 <- filter(tplot, group == '2')
+tplot3 <- filter(tplot, group == '3')
+
+
+
+ga <- ggplot(data_to_plot)+
+  geom_point(aes(x = date, y = -depth, size = t_chla), colour = "Grey")+
+  geom_point(data = filter(data_to_plot, cluster == "1"), aes(x =date, y = -depth, size = t_chla), colour = "#e41a1c")+
+  scale_size(guide = "none")+
+  xlab("")+
+  theme_bw()+
+  ggtitle("Cluster 1")
+
+gb <- ggplot(data_to_plot)+
+  geom_point(aes(x = date, y = -depth, size = t_chla), colour = "Grey")+
+  geom_point(data = filter(data_to_plot, cluster == "2"), aes(x =date, y = -depth, size = t_chla), colour = "#377eb8")+
+  xlab("")+
+  ylab("")+
+  theme_bw()+
+  scale_size(guide = "none")+
+  ggtitle("Cluster 2")
+
+gc <- ggplot(data_to_plot)+
+  geom_point(aes(x = date, y = -depth, size = t_chla), colour = "Grey")+
+  geom_point(data = filter(data_to_plot, cluster == "3"), aes(x =date, y = -depth, size = t_chla), colour = "#4daf4a")+
+  scale_size(guide = "none")+
+  theme_bw()+
+  xlab("")+
+  ylab("")+
+  ggtitle("Cluster 3")
+
+
+g2 <- ggplot(tplot1, aes(area = concentration, fill = size, subgroup = size, label = pigment))+
+  geom_treemap(layout = 'fixed')+
+  geom_treemap_subgroup_text(layout = 'fixed', place = 'middle', fontface = 'bold', size = 14)+
+  geom_treemap_text(layout = 'fixed', place = 'bottomright', 'size' = 11, colour = 'white', fontface = 'italic')+
+  guides(fill = "none")+
+  scale_fill_brewer(palette = 'Dark2')
+
+g3 <- ggplot(tplot2, aes(area = concentration, fill = size, subgroup = size, label = pigment))+
+  geom_treemap(layout = 'fixed')+
+  geom_treemap_subgroup_text(layout = 'fixed', place = 'middle', fontface = 'bold', size = 14)+
+  geom_treemap_text(layout = 'fixed', place = 'bottomright', 'size' = 11, colour = 'white', fontface = 'italic')+
+  guides(fill = "none")+
+  scale_fill_brewer(palette = 'Dark2')
+
+g4 <- ggplot(tplot3, aes(area = concentration, fill = size, subgroup = size, label = pigment))+
+  geom_treemap(layout = 'fixed')+
+  geom_treemap_subgroup_text(layout = 'fixed', place = 'middle', fontface = 'bold', size = 14)+
+  geom_treemap_text(layout = 'fixed', place = 'bottomright', 'size' = 11, colour = 'white', fontface = 'italic')+
+  guides(fill = "none")+
+  scale_fill_brewer(palette = 'Dark2')
+
+(ga|gb|gc) /(g2 | g3 | g4)
+
+data_three_cluster <- data_ca %>% rename("cluster" = group) %>% select(-pressure) %>% na.omit()
+
+#write_csv(data_three_cluster, "Boussole/Output/Data/Compiled/hplc_mf_3_clusterised_cp.csv")
+
+### 2 cluster
+
+AFC <- cca(select(merge_data_with_cp, all_of(pigments_afc)))
+
+scores <- data.frame(scores(AFC, choices = c(1,2,3), display = "site"))
+data_ca <- bind_cols(merge_data_with_cp, scores)
+
+pigscore <- data.frame(scores(AFC, choices = c(1,2,3), display = "species"))
+
+data_ca <- data_ca %>% mutate("f532_f440" = fluo_532 /fluo_440)
+distbouss <- dist(select(data_ca, f440_f470, f532_f470, CA1, CA2))
+
+plot(hclust(distbouss, method = "ward.D"))
+
+data_ca$group <- as.factor(cutree(hclust(distbouss, method = "ward.D"),  k = 2))
+
+
+# cluster visualization ---------------------------------------------------
+
+
+data_to_plot <- select(data_ca, bouss, date, depth, sumpig, pigments, group) %>% 
+  mutate_at(all_of(pigment_to_plot), ~./sumpig) %>%
+  pivot_longer(all_of(pigment_to_plot), values_to = "proportion", names_to = "pigment")
+
+cluster_viz <- data_ca %>% select(pigment_to_plot, group) %>%  group_by(group) %>%
+  summarise_all(mean, na.rm = "TRUE") %>% ungroup() %>% 
+  pivot_longer(all_of(pigment_to_plot), values_to = "concentration", names_to = "pigment")
+
+tplot <- data_ca %>% 
+  group_by(group) %>% 
+  mutate(wdp = 1.56 * fuco + 0.92 * peri + 4.8 * allo + 1.02 * but + 1.12 * hex + 1.51 * zea + 0.69 * t_chlb,
+         micro = (1.56 * fuco + 0.92 * peri)/wdp,
+         nano = (4.8 * allo + 1.02 * but + 1.51 * hex)/wdp,
+         pico = (1.51 * zea + 0.69 * t_chlb)/wdp) %>% 
+  summarise_at(vars(c(pico, nano, micro, t_chlb, fuco, zea, peri, allo, hex, but, dv_chla)), mean, na.rm = TRUE) %>% 
+  ungroup() %>% 
+  pivot_longer(t_chlb:dv_chla, names_to = 'pigment', values_to = 'concentration') %>% 
+  mutate(size = ifelse(pigment %in% c('zea', 't_chlb', 'dv_chla'), 'pico', ifelse(pigment %in% c('allo', 'hex', 'but'), 'nano', ifelse(pigment %in% c('fuco', 'peri'), 'micro', 'error'))))
+
+tplot1 <- filter(tplot, group == '1')
+tplot2 <- filter(tplot, group == '2')
+
+
+
+ga <- ggplot(data_to_plot)+
+  geom_point(aes(x = date, y = -depth, size = t_chla), colour = "Grey")+
+  geom_point(data = filter(data_to_plot, group == "1"), aes(x =date, y = -depth, size = t_chla), colour = "#e41a1c")+
+  scale_size(guide = "none")+
+  xlab("")+
+  theme_bw()+
+  ggtitle("Cluster 1")
+
+gb <- ggplot(data_to_plot)+
+  geom_point(aes(x = date, y = -depth, size = t_chla), colour = "Grey")+
+  geom_point(data = filter(data_to_plot, group == "2"), aes(x =date, y = -depth, size = t_chla), colour = "#377eb8")+
+  xlab("")+
+  ylab("")+
+  theme_bw()+
+  scale_size(guide = "none")+
+  ggtitle("Cluster 2")
+
+
+
+g2 <- ggplot(tplot1, aes(area = concentration, fill = size, subgroup = size, label = pigment))+
+  geom_treemap(layout = 'fixed')+
+  geom_treemap_subgroup_text(layout = 'fixed', place = 'middle', fontface = 'bold', size = 14)+
+  geom_treemap_text(layout = 'fixed', place = 'bottomright', 'size' = 11, colour = 'white', fontface = 'italic')+
+  guides(fill = "none")+
+  scale_fill_brewer(palette = 'Dark2')
+
+g3 <- ggplot(tplot2, aes(area = concentration, fill = size, subgroup = size, label = pigment))+
+  geom_treemap(layout = 'fixed')+
+  geom_treemap_subgroup_text(layout = 'fixed', place = 'middle', fontface = 'bold', size = 14)+
+  geom_treemap_text(layout = 'fixed', place = 'bottomright', 'size' = 11, colour = 'white', fontface = 'italic')+
+  guides(fill = "none")+
+  scale_fill_brewer(palette = 'Dark2')
+
+
+
+(ga|gb) /(g2 | g3)
+
+data_two_cluster <- data_ca %>% rename("cluster" = group) %>% select(-pressure) %>% na.omit()
+
+#write_csv(data_two_cluster, "Boussole/Output/Data/Compiled/hplc_mf_2_clusterised_cp.csv")
