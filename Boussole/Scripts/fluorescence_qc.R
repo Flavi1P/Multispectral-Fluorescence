@@ -1,5 +1,6 @@
 library(tidyverse)
 library(readxl)
+library(zoo)
 source("Boussole/Scripts/read_hplc_bouss.R")
 
 pigments <- c("chl_c1_c2", "chl_c3", "peri", "but", "fuco", "neox", "prasi", "viola", "hex", "diad", "allo", "diat", "zea", "lutein", "dv_chlb", "chlb", "t_chlb", "dv_chla", "chla", "t_chla")
@@ -17,10 +18,12 @@ mf <- ctd %>% select(bouss, depth, ctd_number, fluo_440, fluo_470, fluo_532) %>%
   filter(fluo_440 > 49 & fluo_470 > 50 & fluo_532 > 50) %>% 
   mutate(fluo_440 = fluo_440 - 49,
          fluo_470 = fluo_470 - 50,
-         fluo_532 = fluo_532 - 50)
+         fluo_532 = fluo_532 - 53,
+         zero_532 = min(fluo_532),
+         fluo_532 = fluo_532 - zero_532)
 
 ggplot(mf)+
-  geom_point(aes(x = fluo_440, y = -depth))+
+  geom_point(aes(x = fluo_532, y = -depth))+
   facet_wrap(.~bouss, scales = "free")
 
 mf2 <- mf %>% group_by(bouss) %>% 
@@ -41,8 +44,14 @@ mf2 <- mf %>% group_by(bouss) %>%
   ungroup()
 
 ggplot(mf2)+
-  geom_point(aes(x = fluo_440, y = -depth))+
+  geom_point(aes(x = fluo_532, y = -depth))+
   facet_wrap(.~bouss, scales = "free")
+
+full_depth <- tibble("bouss" = sort(rep(c(225:235), 100)), "depth" = rep(c(1:100), 11)) %>% left_join(mf2) %>% 
+  group_by(bouss) %>% 
+  mutate(fluo_440 = na.approx(fluo_440, na.rm = FALSE),
+         fluo_470 = na.approx(fluo_470, na.rm = FALSE),
+         fluo_532 = na.approx(fluo_532, na.rm = FALSE)) %>% na.omit() #linear interpolation of previoulsy removed outliers
 
 hplc <- read_hplc("Boussole/Data/raw/HPLC/BOUSSOLE_Nov20_Dec21 - Flavien_not validated.xlsx") %>% 
   mutate(bouss = as.numeric(str_extract(station_name, "[0-9]{3}")),
@@ -57,7 +66,7 @@ hplc <- hplc %>% mutate_at(c(3:22), as.numeric) %>%
   group_by(bouss, depth) %>% 
   summarise_all(mean, na.rm = TRUE)
 
-merge_data <- left_join(hplc, mf2, by = c("bouss", "depth")) %>% 
+merge_data <- left_join(hplc,full_depth, by = c("bouss", "depth")) %>% 
   select(bouss, depth, fluo_440, fluo_470, fluo_532, pigments)
 
 merge_data_chl <- merge_data %>% mutate(chl440 = fluo_440 / 47,
@@ -71,7 +80,7 @@ ggplot(merge_data_chl)+
   facet_wrap(.~bouss)
 
 
-mf_final <- mf2 %>% 
+mf_final <- full_depth %>% 
   mutate(f470_f440 = fluo_470 / fluo_440,
          f532_f440 = fluo_532 / fluo_440,
          chl440 = fluo_440 / 47,
@@ -80,58 +89,85 @@ mf_final <- mf2 %>%
          chl470_chl440 = chl470 / chl440,
          chl532_chl440 = chl532 / chl440)
 
+
+
+# cyto --------------------------------------------------------------------
+
+
+cyto <- read_csv("Boussole/Output/Data/Compiled/ctd_echo_hplc_cyto.csv") %>% 
+  select(bouss, depth, pico_pk:nano_e2) %>% na.omit()
+
+data <- full_join(mf_final, cyto)
+
+
+ggplot(data)+
+  geom_point(aes(x = f470_f440, y = f532_f440, colour = chl440))
+
+
+# previous dataset --------------------------------------------------------
+
+clusters <- read_csv("Boussole/Output/Data/Compiled/hplc_mf_clusterised_cp.csv") %>% 
+  select(-fluo_440, -fluo_470, -fluo_532, -f440_f470, -f532_f470, -f532_f440)
+
+new_training <- left_join(clusters, mf_final) %>% 
+  mutate(f440_bbp = fluo_440/bb700,
+         f470_bbp = fluo_470/bb700,
+         f532_bbp = fluo_532/bb700,
+         f440_cp = fluo_440/cp,
+         f470_cp = fluo_470/cp,
+         f532_cp = fluo_532/cp,
+         f440_f470 = fluo_440/fluo_470,
+         f532_f470 = chl532/chl470,
+         f440b_f470b = f440_bbp / f470_bbp,
+         f532b_f470b = f532_bbp / f470_bbp,
+         f440c_f470c = f440_cp / f470_cp,
+         f532c_f470c = f532_cp / f470_cp,
+         bbp_cp = bb700/cp)
+
+
+ggplot(new_training)+
+  geom_point(aes(x = f440b_f470b, y = f532b_f470b, colour = as.factor(cluster +1)))+
+  scale_color_brewer(palette = "Set1", name = "Cluster")+
+  xlim(0.5,1)+
+  ylim(0.05,0.5)+
+  theme_bw()
+
+ggplot(new_training)+
+  geom_point(aes(x = f440_f470, y = f532_f470, colour = as.factor(cluster +1)))+
+  scale_color_brewer(palette = "Set1", name = "Cluster")+
+  xlim(0.5,1)+
+  ylim(0.05,0.5)+
+  theme_bw()
+
+
+ggplot(new_training)+
+  geom_point(aes(y = fluo_532, x = chl470, colour = as.factor(cluster +1)))+
+  scale_color_brewer(palette = "Set1", name = "Cluster")+
+  theme_bw()
+
+ggplot(new_training)+
+  geom_point(aes(y = f440c_f470c, x = chl470, colour = as.factor(cluster +1)))+
+  scale_color_brewer(palette = "Set1", name = "Cluster")+
+  ylim(0.5,1)+
+  theme_bw()
+
+ggplot(new_training)+
+  geom_point(aes(y = fluo_440, x = fluo_470))
+
+
+ggplot(new_training)+
+  geom_boxplot(aes(x = cluster, y = cp, colour = as.factor(cluster)))+
+  scale_color_viridis_d()
+
+ggplot(new_training)+
+  geom_boxplot(aes(x = cluster, y = f470_f440, colour = as.factor(cluster)))+
+  scale_color_viridis_d()
+
 #remove outliers
 
-outlier_470_440 <- mf_final$f470_f440[mf_final$f470_f440 %in% boxplot.stats(mf_final$f470_f440)$out]
-outlier_532_440 <- mf_final$f532_f440[mf_final$f532_f440 %in% boxplot.stats(mf_final$f532_f440)$out]
+outlier_470_440 <- new_training$f470_f440[new_training$f470_f440 %in% boxplot.stats(new_training$f470_f440)$out]
+outlier_532_440 <- new_training$f532_f440[new_training$f532_f440 %in% boxplot.stats(new_training$f532_f440)$out]
 
-mf_final <- mf_final %>% filter(!f470_f440 %in% outlier_470_440) %>% 
-  filter(!f532_f440 %in% outlier_532_440)
-
-ggplot(mf_final)+
-  geom_point(aes(x = f470_f440, y = f532_f440, colour = chl470))
-
-ggplot(mf_final)+
-  geom_point(aes(x = chl470_chl440, y = chl532_chl440, colour = "chl"))
-  
-pigments_afc <- pigments[pigments != "t_chla" & pigments != "t_chlb"]
-
-merge_data_chl <- merge_data_chl %>% ungroup()
-
-AFC <- cca(select(merge_data_chl, all_of(pigments_afc)))
-
-scores <- data.frame(scores(AFC, choices = c(1,2,3), display = "site"))
-data_ca <- bind_cols(merge_data_chl, scores)
-
-pigscore <- data.frame(scores(AFC, choices = c(1,2,3), display = "species"))
-
-
-ggplot(data_ca)+
-  geom_point(aes(x = CA1, y = CA2, colour = depth))+
-  geom_segment(aes(x = 0, xend = CA1, y = 0, yend = CA2), data = pigscore)+
-  geom_text(aes(x = CA1, y = CA2, label = rownames(pigscore)), data = pigscore)+
-  scale_color_viridis_c()+
-  xlim(-2,2)+
-  ylim(-2,2)
-
-data_ca <- data_ca %>% mutate("f532_f440" = fluo_532 /fluo_440)
-distbouss <- dist(select(data_ca, CA1, CA2))
-
-plot(hclust(distbouss, method = "ward.D"))
-
-data_ca$group <- as.factor(cutree(hclust(distbouss, method = "ward.D"),  h = 20))
-
-
-merge_data_chl$cluster <- data_ca$group
-
-merge_data_chl <- merge_data_chl %>% mutate(f470_f440 = fluo_470 / fluo_440,
-                                       f532_f440 = fluo_532 / fluo_440,
-                                       chl440 = fluo_440 / 47,
-                                       chl470 = fluo_470 / 44,
-                                       chl532 = fluo_532 / 6,
-                                       chl470_chl440 = chl470 / chl440,
-                                       chl532_chl440 = chl532 / chl440)
-
-ggplot(merge_data_chl)+
-  geom_point(aes(x = f470_f440, y = f532_f440, colour = cluster))
-
+new_training <- new_training %>% filter(!f470_f440 %in% outlier_470_440) %>% 
+  filter(!f532_f440 %in% outlier_532_440) %>% 
+  filter(fluo_440 > 40)
