@@ -1,6 +1,7 @@
 library(tidyverse)
 library(readxl)
 library(zoo)
+library(ggside)
 source("Boussole/Scripts/read_hplc_bouss.R")
 
 pigments <- c("chl_c1_c2", "chl_c3", "peri", "but", "fuco", "neox", "prasi", "viola", "hex", "diad", "allo", "diat", "zea", "lutein", "dv_chlb", "chlb", "t_chlb", "dv_chla", "chla", "t_chla")
@@ -18,9 +19,7 @@ mf <- ctd %>% select(bouss, depth, ctd_number, fluo_440, fluo_470, fluo_532) %>%
   filter(fluo_440 > 49 & fluo_470 > 50 & fluo_532 > 50) %>% 
   mutate(fluo_440 = fluo_440 - 49,
          fluo_470 = fluo_470 - 50,
-         fluo_532 = fluo_532 - 53,
-         zero_532 = min(fluo_532),
-         fluo_532 = fluo_532 - zero_532)
+         fluo_532 = fluo_532 - 52)
 
 ggplot(mf)+
   geom_point(aes(x = fluo_532, y = -depth))+
@@ -110,7 +109,9 @@ clusters <- read_csv("Boussole/Output/Data/Compiled/hplc_mf_clusterised_cp.csv")
   select(-fluo_440, -fluo_470, -fluo_532, -f440_f470, -f532_f470, -f532_f440)
 
 new_training <- left_join(clusters, mf_final) %>% 
-  mutate(f440_bbp = fluo_440/bb700,
+  mutate(dark_bb = min(bb700),
+         bb700 = bb700 - dark_bb + 0.1,
+         f440_bbp = fluo_440/bb700,
          f470_bbp = fluo_470/bb700,
          f532_bbp = fluo_532/bb700,
          f440_cp = fluo_440/cp,
@@ -133,12 +134,11 @@ ggplot(new_training)+
   theme_bw()
 
 ggplot(new_training)+
-  geom_point(aes(x = f440_f470, y = f532_f470, colour = as.factor(cluster +1)))+
-  scale_color_brewer(palette = "Set1", name = "Cluster")+
+  geom_point(aes(x = f440b_f470b, y = f532b_f470b, colour = zea))+
+  scale_color_viridis_c()+
   xlim(0.5,1)+
   ylim(0.05,0.5)+
   theme_bw()
-
 
 ggplot(new_training)+
   geom_point(aes(y = fluo_532, x = chl470, colour = as.factor(cluster +1)))+
@@ -146,9 +146,8 @@ ggplot(new_training)+
   theme_bw()
 
 ggplot(new_training)+
-  geom_point(aes(y = f440c_f470c, x = chl470, colour = as.factor(cluster +1)))+
+  geom_point(aes(y = bbp_cp, x = chl470, colour = as.factor(cluster +1)))+
   scale_color_brewer(palette = "Set1", name = "Cluster")+
-  ylim(0.5,1)+
   theme_bw()
 
 ggplot(new_training)+
@@ -156,18 +155,78 @@ ggplot(new_training)+
 
 
 ggplot(new_training)+
-  geom_boxplot(aes(x = cluster, y = cp, colour = as.factor(cluster)))+
-  scale_color_viridis_d()
+  geom_boxplot(aes(x = cluster, y = chl470, colour = as.factor(cluster)))+
+  geom_jitter(aes(x = cluster, y = chl470, colour = as.factor(cluster)))+
+  geom_hline(aes(yintercept = 0.1))+
+  scale_y_log10()+
+  scale_color_brewer(palette = "Set1")
 
 ggplot(new_training)+
-  geom_boxplot(aes(x = cluster, y = f470_f440, colour = as.factor(cluster)))+
+  geom_boxplot(aes(x = cluster, y = f532_f440, colour = as.factor(cluster)))+
   scale_color_viridis_d()
+
+ggplot(new_training, aes(x = f470_f440, y = f532_f440))+
+  geom_point(aes(colour = as.factor(cluster)), size = 2)+
+  geom_xsidedensity(aes(y = after_stat(density), fill = as.factor(cluster)), position = "stack")+
+  geom_ysidedensity(aes(x = after_stat(density), fill = as.factor(cluster)), position = "stack")+
+  theme_bw()+
+  scale_colour_brewer(palette = "Set1")+
+  scale_fill_brewer(palette = "Set1")
+
+
+ggplot(new_training, aes(x = bb700, y = cp))+
+  geom_point(aes(colour = as.factor(cluster)), size = 2)+
+  geom_xsidedensity(aes(y = after_stat(density), fill = as.factor(cluster)), position = "stack")+
+  geom_ysidedensity(aes(x = after_stat(density), fill = as.factor(cluster)), position = "stack")+
+  theme_bw()+
+  scale_colour_brewer(palette = "Set1")+
+  scale_fill_brewer(palette = "Set1")
+
+
+
+dataset <- select(new_training, bouss, depth, fluo_440, fluo_470, fluo_532, bb700, cp, f440_f470, f532_f470, cluster)
+
+#write_csv(dataset, "Boussole/Output/Data/Compiled/ml_dataset.csv")
+
+ggplot(new_training)+
+  geom_point(aes(x = bbp_cp, y = fluo_470))
 
 #remove outliers
 
 outlier_470_440 <- new_training$f470_f440[new_training$f470_f440 %in% boxplot.stats(new_training$f470_f440)$out]
 outlier_532_440 <- new_training$f532_f440[new_training$f532_f440 %in% boxplot.stats(new_training$f532_f440)$out]
 
-new_training <- new_training %>% filter(!f470_f440 %in% outlier_470_440) %>% 
+filtered_training <- new_training %>% filter(!f470_f440 %in% outlier_470_440) %>% 
   filter(!f532_f440 %in% outlier_532_440) %>% 
-  filter(fluo_440 > 40)
+  filter(fluo_440 > 40) %>% 
+  mutate(binary = case_when( cluster %in% c(0,1) ~ "A",
+                             cluster %in% c(2,3) ~ "B"))
+
+ggplot(filtered_training, aes(x = f470_f440, y = f532_f440))+
+  geom_point(aes(colour = as.factor(cluster)), size = 2)+
+  geom_xsidedensity(aes(y = after_stat(density), fill = as.factor(cluster)), position = "stack")+
+  geom_ysidedensity(aes(x = after_stat(density), fill = as.factor(cluster)), position = "stack")+
+  theme_bw()+
+  scale_colour_brewer(palette = "Set1")+
+  scale_fill_brewer(palette = "Set1")
+
+ggplot(filtered_training, aes(x = f470_f440, y = f532_f440))+
+  geom_point(aes(colour = binary, size = 2))+
+  geom_xsidedensity(aes(y = after_stat(density), fill = binary), position = "stack")+
+  geom_ysidedensity(aes(x = after_stat(density), fill = binary), position = "stack")+
+  theme_bw()+
+  scale_colour_brewer(palette = "Set1")+
+  scale_fill_brewer(palette = "Set1")
+
+new_training <- new_training%>% 
+  mutate(binary = case_when( cluster %in% c(0,1) ~ "A",
+                             cluster %in% c(2,3) ~ "B"))
+
+
+ggplot(new_training, aes(x = f470_f440, y = f532_f440))+
+  geom_point(aes(colour = depth, shape = binary, size = 2))+
+  geom_xsidedensity(aes(y = after_stat(density), fill = binary), position = "stack")+
+  geom_ysidedensity(aes(x = after_stat(density), fill = binary), position = "stack")+
+  theme_bw()+
+  scale_colour_viridis_c()+
+  scale_fill_brewer(palette = "Set1")
