@@ -285,14 +285,26 @@ cluster_viz <- data_clust %>% select(pigment_to_plot, cluster) %>%  group_by(clu
 
 tplot <- data_clust %>% 
   group_by(cluster) %>% 
-  mutate(wdp = 1.56 * fuco + 0.92 * peri + 4.8 * allo + 1.02 * but + 1.12 * hex + 1.51 * zea + 0.69 * t_chlb,
-         micro = (1.56 * fuco + 0.92 * peri)/wdp,
-         nano = (4.8 * allo + 1.02 * but + 1.51 * hex)/wdp,
-         pico = (1.51 * zea + 0.69 * t_chlb)/wdp) %>% 
-  summarise_at(vars(c(pico, nano, micro, t_chlb, fuco, zea, peri, allo, hex, but, dv_chla)), mean, na.rm = TRUE) %>% 
+  summarise_at(vars(c(t_chlb, fuco, zea, peri, allo, hex, but, dv_chla)), mean, na.rm = TRUE) %>% 
   ungroup() %>% 
+  mutate(wdp = 1.56 * fuco + 0.92 * peri + 4.8 * allo + 1.02 * but + 1.12 * hex + 1.51 * zea + 0.69 * t_chlb + dv_chla,
+         micro = (1.56 * fuco + 0.92 * peri)/wdp,
+         nano = (4.8 * allo + 1.02 * but + 1.12 * hex)/wdp,
+         pico = (1.51 * zea + 0.69 * t_chlb + dv_chla)/wdp) %>%
   pivot_longer(t_chlb:dv_chla, names_to = 'pigment', values_to = 'concentration') %>% 
-  mutate(size = ifelse(pigment %in% c('zea', 't_chlb', 'dv_chla'), 'pico', ifelse(pigment %in% c('allo', 'hex', 'but'), 'nano', ifelse(pigment %in% c('fuco', 'peri'), 'micro', 'error'))))
+  mutate(wconcentration = case_when(pigment == "fuco" ~ concentration * 1.56,
+                                    pigment == "peri" ~ concentration * 0.92,
+                                    pigment == "allo" ~ concentration * 4.8,
+                                    pigment == "but" ~ concentration * 1.02,
+                                    pigment == "hex" ~ concentration * 1.12,
+                                    pigment == "zea" ~ concentration * 1.51,
+                                    pigment == "t_chlb" ~ concentration * 0.69,
+                                    pigment == "dv_chla" ~ concentration)) %>% 
+  mutate(size = ifelse(pigment %in% c('zea', 't_chlb', 'dv_chla'), 'pico', ifelse(pigment %in% c('allo', 'hex', 'but'), 'nano', ifelse(pigment %in% c('fuco', 'peri'), 'micro', 'error')))) %>% 
+  mutate("percent" = case_when(size == "micro" ~ micro * 100,
+                               size == "nano" ~ nano * 100,
+                               size == "pico" ~ pico * 100),
+         "label_with_percent" = paste(size, " (", round(percent), "%)", sep = ""))
 
 tplot0 <- filter(tplot, cluster == '0')
 tplot1 <- filter(tplot, cluster == '1')
@@ -348,31 +360,31 @@ gd <- ggplot(data_to_plot)+
 
 #create the three treeplot
 
-g1 <- ggplot(tplot0, aes(area = concentration, fill = size, subgroup = size, label = pigment))+
+g1 <- ggplot(tplot0, aes(area = wconcentration, fill = label_with_percent, subgroup = label_with_percent, label = pigment))+
   geom_treemap(layout = 'fixed')+
   geom_treemap_subgroup_text(layout = 'fixed', place = 'middle', fontface = 'bold', size = 14)+
   geom_treemap_text(layout = 'fixed', place = 'bottomright', 'size' = 11, colour = 'white', fontface = 'italic')+
   guides(fill = "none")+
   scale_fill_brewer(palette = 'Dark2')
 
-g2 <- ggplot(tplot1, aes(area = concentration, fill = size, subgroup = size, label = pigment))+
+g2 <- ggplot(tplot1, aes(area = wconcentration, fill = label_with_percent, subgroup = label_with_percent, label = pigment))+
   geom_treemap(layout = 'fixed')+
   geom_treemap_subgroup_text(layout = 'fixed', place = 'middle', fontface = 'bold', size = 14)+
   geom_treemap_text(layout = 'fixed', place = 'bottomright', 'size' = 11, colour = 'white', fontface = 'italic')+
   guides(fill = "none")+
   scale_fill_brewer(palette = 'Dark2')
 
-g3 <- ggplot(tplot2, aes(area = concentration, fill = size, subgroup = size, label = pigment))+
+g3 <- ggplot(tplot2, aes(area = wconcentration, fill = label_with_percent, subgroup = label_with_percent, label = pigment))+
   geom_treemap(layout = 'fixed')+
   geom_treemap_subgroup_text(layout = 'fixed', place = 'middle', fontface = 'bold', size = 14)+
-  geom_treemap_text(layout = 'fixed', place = 'bottomright', 'size' = 11, colour = 'white', fontface = 'italic')+
+  geom_treemap_text(layout = 'fixed', place = 'bottomright', size = 11, colour = 'white', fontface = 'italic')+
   guides(fill = "none")+
   scale_fill_brewer(palette = 'Dark2')
 
-g4 <- ggplot(tplot3, aes(area = concentration, fill = size, subgroup = size, label = pigment))+
+g4 <- ggplot(tplot3, aes(area = wconcentration, fill = label_with_percent, subgroup = label_with_percent, label = pigment))+
   geom_treemap(layout = 'fixed')+
   geom_treemap_subgroup_text(layout = 'fixed', place = 'middle', fontface = 'bold', size = 14)+
-  geom_treemap_text(layout = 'fixed', place = 'bottomright', 'size' = 11, colour = 'white', fontface = 'italic')+
+  geom_treemap_text(layout = 'fixed', place = 'bottomright', size = 11, colour = 'white', fontface = 'italic')+
   guides(fill = "none")+
   scale_fill_brewer(palette = 'Dark2')
 
