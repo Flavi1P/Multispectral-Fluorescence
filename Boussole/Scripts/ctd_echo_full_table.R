@@ -1,4 +1,5 @@
 library(tidyverse)
+library(lubridate)
 
 #create one tibble with all the data from CTD and 3X1M, bin at each meter with no NA in it
 
@@ -67,14 +68,25 @@ ggplot(date_unique)+
   xlim(50,400)+
   ylim(-100,0)
 
-ggplot(filter(date_unique, way == "asc"))+
-  geom_point(aes(x = f440_f470, y = -depth_round, colour = "440/470"))+
-  geom_point(aes(x = f532_f470, y = -depth_round, colour = "532/470"))+
-  geom_point(aes(x = fluo_chl, y = - depth_round, colour = "Chl"))+
-  facet_wrap(.~ prof_id, ncol = 4)+
+ggplot(filter(date_unique, bouss == 228))+
+  geom_point(aes(x = bb700, y = - depth_round, colour = "470"))+
+  facet_wrap(.~ prof_id , ncol = 4, scales = "free_x")+
   scale_color_brewer(palette = "Paired")+
   theme_bw()+
-  xlim(0,3)+
   ylim(-100,0)
+
+bb_clean <- date_unique %>%
+  select(prof_id, bouss, depth_round, bb700) %>% group_by(prof_id) %>% 
+  mutate(thresholdbb = 1.5*zoo::rollmedian(bb700, 3, na.pad = 70),
+         outlier = case_when(bb700 < thresholdbb ~ "no",
+                             bb700 >= thresholdbb ~ "yes")) %>% 
+  filter(outlier != "yes") %>%
+  ungroup() %>% 
+  group_by(prof_id, depth_round) %>% 
+  summarise(bb700 = mean(bb700)) %>% 
+  mutate(bb700 = zoo::rollmean(bb700, 3, na.pad = 70)) %>% 
+  ungroup()
+
+date_unique <- date_unique %>% select(-bb700) %>% left_join(bb_clean)
 
 write_csv(date_unique, "Boussole/Output/Data/Compiled/ctd_multiplexer_all_campains.csv")

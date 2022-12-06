@@ -421,11 +421,12 @@ In order to better understand the difference between the *In-Situ* data and the 
 
 ```{r message=FALSE, warning=FALSE}
 library(FactoMineR)
-pig_ca <- result_tot %>% select(chl_c1_c2:dv_chla, common_name, f440_f470, f532_f470) %>% mutate(pig_sum = rowSums(.[,1:12])) %>% 
+
+pig_ca <- result_tot %>% select(chl_c1_c2:dv_chla, common_name, f440_f470, f532_f470, - t_chlb) %>% mutate(pig_sum = rowSums(.[,1:11])) %>% 
   filter(pig_sum > 0 & common_name != "Dino") %>% 
   select(-pig_sum)
 
-pig_insitu <- data_clust %>% select(all_of(colnames(pig_ca[,1:12])), cluster, f440_f470, f532_f470) %>%
+pig_insitu <- data_clust %>% select(all_of(colnames(pig_ca[,1:11])), cluster, f440_f470, f532_f470) %>%
   rename("common_name" = cluster)
 
 pig_tot <- bind_rows(pig_ca, pig_insitu)
@@ -477,25 +478,32 @@ pig_and_name <- pig_and_name %>% mutate(common_name = case_when(common_name == "
                                                                 common_name == "1" ~ "Cluster 2",
                                                                 common_name == "2" ~ "Cluster 3",
                                                                 common_name == "3" ~ "Cluster 4",
-                                                                TRUE ~ common_name))
+                                                                TRUE ~ common_name),
+                                        sample = case_when(common_name %in% c("Cluster 1", "Cluster 2", "Cluster 3", "Cluster 4") ~ "Field",
+                                                         !common_name %in% c("Cluster 1", "Cluster 2", "Cluster 3", "Cluster 4") ~ "Laboratory"))
+
+
+
 ```
 
 ```{r fig.align="center", fig.cap="Figure: CA porjection of Monospecific lab HPLC data, with insitu HPLC data as supplementary observation", fig.height=7, fig.width=10, message=FALSE, warning=FALSE}
 library(ggrepel)
 
+vPCs2 <- data.frame(vPCs[-c(1,2),])
 
 ggplot(pig_and_name)+
-  geom_point(aes(x = PC1, y = PC2, colour = common_name))+
-  geom_segment(aes(x = 0, y = 0, xend =PC1 * 0.8, yend = PC2 * 0.8), data = vPCs)+
-  geom_text_repel(aes(x = PC1 * 0.8, y = PC2 * 0.8, label=rownames(vPCs), fontface = 2), data = vPCs)+
+  geom_point(aes(x = PC1, y = PC2, colour = common_name, shape = sample), size = 3)+
+  geom_segment(aes(x = 0, y = 0, xend =PC1 * 0.8, yend = PC2 * 0.8), data = vPCs2)+
+  geom_text_repel(aes(x = PC1 * 0.8, y = PC2 * 0.8, label=rownames(vPCs2), fontface = 2), data = vPCs2)+
   scale_color_brewer(palette = "Set1", name = "Taxa or Cluster")+
   xlab("CA1 (60%)")+
   ylab("CA2 (18.5%)")+
-  theme_bw(base_size = 16)
+  theme_bw(base_size = 16)+
+  scale_shape_manual(values = c(1,19))
 
 path_to_plot <- paste(local_path, "Boussole/Output/Plots/afc.png", sep = "/")
 
-ggsave(path_to_plot, width = 20, height = 13, dpi = 300, units = "cm")
+#ggsave(path_to_plot, width = 20, height = 13, dpi = 300, units = "cm")
 
 ```
 

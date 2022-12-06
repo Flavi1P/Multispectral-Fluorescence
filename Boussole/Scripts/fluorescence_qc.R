@@ -12,7 +12,7 @@ ctd <- read_csv("Boussole/Output/Data/Compiled/ctd_multiplexer_all_campains.csv"
   filter(way == "asc") %>% 
   rename("depth" = depth_round, ctd_number = prof_num)
 
-mf <- ctd %>% select(bouss, depth, ctd_number, fluo_440, fluo_470, fluo_532) %>% 
+mf <- ctd %>% select(bouss, depth, ctd_number, fluo_440, fluo_470, fluo_532, temp, conductivity) %>% 
   group_by(bouss) %>%
   na.omit() %>% 
   filter(depth < 100) %>% 
@@ -21,8 +21,15 @@ mf <- ctd %>% select(bouss, depth, ctd_number, fluo_440, fluo_470, fluo_532) %>%
          fluo_470 = fluo_470 - 50,
          fluo_532 = fluo_532 - 52)
 
+bb700 <- ctd %>% select(bouss, depth, bb700) %>% 
+  group_by(bouss, depth) %>% 
+  summarise(bb700 = mean(bb700)) %>% 
+  ungroup()
+
+mf <- left_join(mf, bb700)
+
 ggplot(mf)+
-  geom_point(aes(x = fluo_532, y = -depth))+
+  geom_point(aes(x = bb700, y = -depth))+
   facet_wrap(.~bouss, scales = "free")
 
 mf2 <- mf %>% group_by(bouss) %>% 
@@ -36,7 +43,10 @@ mf2 <- mf %>% group_by(bouss) %>%
   group_by(bouss, depth) %>% 
   summarise(fluo_440 = mean(fluo_440),
             fluo_470 = mean(fluo_470),
-            fluo_532 = mean(fluo_532)) %>% 
+            fluo_532 = mean(fluo_532),
+            temp = mean(temp),
+            salinity = mean(conductivity),
+            bb700 = mean(bb700)) %>% 
   mutate(fluo_440 = zoo::rollmean(fluo_440, 3, na.pad = 55),
          fluo_470 = zoo::rollmean(fluo_470, 3, na.pad = 55),
          fluo_532 = zoo::rollmean(fluo_532, 3, na.pad = 55)) %>% 
@@ -46,13 +56,14 @@ full_depth <- tibble("bouss" = sort(rep(c(225:235), 100)), "depth" = rep(c(1:100
   group_by(bouss) %>% 
   mutate(fluo_440 = na.approx(fluo_440, na.rm = FALSE),
          fluo_470 = na.approx(fluo_470, na.rm = FALSE),
-         fluo_532 = na.approx(fluo_532, na.rm = FALSE)) %>% na.omit() %>% 
+         fluo_532 = na.approx(fluo_532, na.rm = FALSE),
+         bb700 = na.approx(bb700, na.rm = FALSE)) %>% na.omit() %>% 
      mutate(chl440 = fluo_440 / 47,
              chl470 = fluo_470 / 44,
              chl532 = fluo_532 / 6)
   #linear interpolation of previoulsy removed outliers
 
-full_depth <- full_depth %>% filter(! bouss %in% c(225, 227))
+#full_depth <- full_depth %>% filter(! bouss %in% c(225, 227))
 
 b3 <- full_depth %>% pivot_longer(chl440:chl532, names_to = "wl", values_to = "counts")
 
@@ -117,11 +128,10 @@ ggplot(data)+
 # previous dataset --------------------------------------------------------
 
 clusters <- read_csv("Boussole/Output/Data/Compiled/hplc_mf_clusterised_cp.csv") %>% 
-  select(-fluo_440, -fluo_470, -fluo_532, -f440_f470, -f532_f470, -f532_f440)
+  select(-fluo_440, -fluo_470, -fluo_532, -f440_f470, -f532_f470, -f532_f440, - bb700)
 
 new_training <- left_join(clusters, mf_final) %>% 
-  mutate(dark_bb = min(bb700),
-         bb700 = bb700 - dark_bb + 0.1,
+  mutate(bb700 = bb700 - 45,
          f440_bbp = fluo_440/bb700,
          f470_bbp = fluo_470/bb700,
          f532_bbp = fluo_532/bb700,
@@ -134,47 +144,12 @@ new_training <- left_join(clusters, mf_final) %>%
          f532b_f470b = f532_bbp / f470_bbp,
          f440c_f470c = f440_cp / f470_cp,
          f532c_f470c = f532_cp / f470_cp,
-         bbp_cp = bb700/cp)
+         bbp_cp = bb700/cp) 
 
 
 ggplot(new_training)+
-  geom_point(aes(x = f440b_f470b, y = f532b_f470b, colour = as.factor(cluster +1)))+
-  scale_color_brewer(palette = "Set1", name = "Cluster")+
-  xlim(0.5,1)+
-  ylim(0.05,0.5)+
-  theme_bw()
-
-ggplot(new_training)+
-  geom_point(aes(x = f440b_f470b, y = f532b_f470b, colour = zea))+
-  scale_color_viridis_c()+
-  xlim(0.5,1)+
-  ylim(0.05,0.5)+
-  theme_bw()
-
-ggplot(new_training)+
-  geom_point(aes(y = fluo_532, x = chl470, colour = as.factor(cluster +1)))+
-  scale_color_brewer(palette = "Set1", name = "Cluster")+
-  theme_bw()
-
-ggplot(new_training)+
-  geom_point(aes(y = bbp_cp, x = chl470, colour = as.factor(cluster +1)))+
-  scale_color_brewer(palette = "Set1", name = "Cluster")+
-  theme_bw()
-
-ggplot(new_training)+
-  geom_point(aes(y = fluo_440, x = fluo_470))
-
-
-ggplot(new_training)+
-  geom_boxplot(aes(x = cluster, y = chl470, colour = as.factor(cluster)))+
-  geom_jitter(aes(x = cluster, y = chl470, colour = as.factor(cluster)))+
-  geom_hline(aes(yintercept = 0.1))+
-  scale_y_log10()+
-  scale_color_brewer(palette = "Set1")
-
-ggplot(new_training)+
-  geom_boxplot(aes(x = cluster, y = f532_f440, colour = as.factor(cluster)))+
-  scale_color_viridis_d()
+  geom_point(aes(x = bb700, y = -depth))+
+  facet_wrap(.~bouss, scales = "free")
 
 ggplot(new_training, aes(x = f470_f440, y = chl532_chl440))+
   geom_point(aes(colour = as.factor(cluster + 1)), size = 3, alpha = 0.8)+
@@ -187,132 +162,51 @@ ggplot(new_training, aes(x = f470_f440, y = chl532_chl440))+
   ylab("F532/F440")
 
 
-ggsave("Boussole/Output/Figures/scatter_insitu.png", width = 20, height = 15, dpi = "print", units = "cm")
+#ggsave("Boussole/Output/Figures/scatter_insitu.png", width = 20, height = 15, dpi = "print", units = "cm")
 
-dataset <- select(new_training, bouss, depth, fluo_440, fluo_470, fluo_532, bb700, cp, f440_f470, f532_f470, cluster)
+dataset <- select(new_training, bouss, depth, fluo_440, fluo_470, fluo_532, bb700, cp, f440_f470, f532_f470, cluster, temp, salinity)
 
+dataset$temp[is.na(dataset$temp)] <- 13.6
+dataset$salinity[is.na(dataset$salinity)] <- 4.55
 
-# cluster fluo ------------------------------------------------------------
+dataset$salinity_real <- swSCTp(dataset$salinity, dataset$temp, dataset$depth, "S/m")
 
-distbouss <- dist(select(new_training, f470_f440, f532_f440))
+temp_sal <- select(dataset, temp, salinity_real)
 
-plot(hclust(distbouss, method = "ward.D"))
+write_csv(temp_sal, "Boussole/output/Data/data_temp_salinity_for_marine.csv")
+#transform bbp
 
-new_training$fluo_clust <- as.factor(cutree(hclust(distbouss, method = "ward.D"),  k = 4))
+rawbb <- dataset %>% pull(bb700)
 
-ggplot(new_training, aes(x = f470_f440, y = chl532_chl440))+
-  geom_point(aes(colour = as.factor(fluo_clust)), size = 3, alpha = 0.8)+
-  geom_xsidedensity(aes(y = after_stat(density), fill = as.factor(fluo_clust)), position = "stack")+
-  geom_ysidedensity(aes(x = after_stat(density), fill = as.factor(fluo_clust)), position = "stack")+
-  theme_bw(base_size = 14)+
-  scale_colour_brewer(palette = "Set1", name = "Cluster")+
-  scale_fill_brewer(palette = "Set1", name = "Cluster")+
-  xlab("F470/F440")+
-  ylab("F532/F440")
+ki <- 1.076
+scale_backscattering <- 1.906e-6
+contrib_sw <- read_csv("Boussole/Data/contribution_sw.txt") %>% pull(betasw)
+contrib_sw <- contrib_sw/2
+beta <- rawbb * scale_backscattering
 
+beta_p <- beta - contrib_sw
 
+bbp <- 2 * pi * ki * beta_p * 10e5
 
-# visualisation -----------------------------------------------------------
-
-
-# cluster visualization ---------------------------------------------------
-library(treemap)
-library(treemapify)
-library(patchwork)
-
-pigment_to_plot <- pigtosum[pigtosum != "t_chla"]
-
-cluster_viz <- new_training %>% select(pigment_to_plot, fluo_clust) %>%  group_by(fluo_clust) %>%
-  summarise_all(mean, na.rm = "TRUE") %>% ungroup() %>% 
-  pivot_longer(all_of(pigment_to_plot), values_to = "concentration", names_to = "pigment")
-
-tplot <- new_training %>% 
-  group_by(fluo_clust) %>% 
-  mutate(wdp = 1.56 * fuco + 0.92 * peri + 4.8 * allo + 1.02 * but + 1.12 * hex + 1.51 * zea + 0.69 * t_chlb,
-         micro = (1.56 * fuco + 0.92 * peri)/wdp,
-         nano = (4.8 * allo + 1.02 * but + 1.51 * hex)/wdp,
-         pico = (1.51 * zea + 0.69 * t_chlb)/wdp) %>% 
-  summarise_at(vars(c(pico, nano, micro, t_chlb, fuco, zea, peri, allo, hex, but, dv_chla)), mean, na.rm = TRUE) %>% 
-  ungroup() %>% 
-  pivot_longer(t_chlb:dv_chla, names_to = 'pigment', values_to = 'concentration') %>% 
-  mutate(size = ifelse(pigment %in% c('zea', 't_chlb', 'dv_chla'), 'pico', ifelse(pigment %in% c('allo', 'hex', 'but'), 'nano', ifelse(pigment %in% c('fuco', 'peri'), 'micro', 'error'))))
-
-tplot1 <- filter(tplot, fluo_clust == '1')
-tplot2 <- filter(tplot, fluo_clust == '2')
-tplot3 <- filter(tplot, fluo_clust == '3')
-tplot4 <- filter(tplot, fluo_clust == '4')
-
-
-
-ga <- ggplot(new_training)+
-  geom_point(aes(x = date, y = -depth, size = t_chla), colour = "Grey")+
-  geom_point(data = filter(new_training, fluo_clust == "1"), aes(x =date, y = -depth, size = t_chla), colour = "#e41a1c")+
-  scale_size(guide = "none")+
-  xlab("")+
-  theme_bw()+
-  ggtitle("Cluster 1")
-
-gb <- ggplot(new_training)+
-  geom_point(aes(x = date, y = -depth, size = t_chla), colour = "Grey")+
-  geom_point(data = filter(new_training, fluo_clust == "2"), aes(x =date, y = -depth, size = t_chla), colour = "#377eb8")+
-  xlab("")+
-  ylab("")+
-  theme_bw()+
-  scale_size(guide = "none")+
-  ggtitle("Cluster 2")
-
-gc <- ggplot(new_training)+
-  geom_point(aes(x = date, y = -depth, size = t_chla), colour = "Grey")+
-  geom_point(data = filter(new_training, fluo_clust == "3"), aes(x =date, y = -depth, size = t_chla), colour = "#4daf4a")+
-  scale_size(guide = "none")+
-  theme_bw()+
-  xlab("")+
-  ylab("")+
-  ggtitle("Cluster 3")
-
-gd <- ggplot(new_training)+
-geom_point(aes(x = date, y = -depth, size = t_chla), colour = "Grey")+
-geom_point(data = filter(new_training, fluo_clust == "4"), aes(x =date, y = -depth, size = t_chla), colour = "#984ea3")+
-scale_size(guide = "none")+
-theme_bw()+
-xlab("")+
-ylab("")+
-ggtitle("Cluster 4")
-
-#create the three treeplot
-
-g2 <- ggplot(tplot1, aes(area = concentration, fill = size, subgroup = size, label = pigment))+
-  geom_treemap(layout = 'fixed')+
-  geom_treemap_subgroup_text(layout = 'fixed', place = 'middle', fontface = 'bold', size = 14)+
-  geom_treemap_text(layout = 'fixed', place = 'bottomright', 'size' = 11, colour = 'white', fontface = 'italic')+
-  guides(fill = "none")+
-  scale_fill_brewer(palette = 'Dark2')
-
-g3 <- ggplot(tplot2, aes(area = concentration, fill = size, subgroup = size, label = pigment))+
-  geom_treemap(layout = 'fixed')+
-  geom_treemap_subgroup_text(layout = 'fixed', place = 'middle', fontface = 'bold', size = 14)+
-  geom_treemap_text(layout = 'fixed', place = 'bottomright', 'size' = 11, colour = 'white', fontface = 'italic')+
-  guides(fill = "none")+
-  scale_fill_brewer(palette = 'Dark2')
-
-g4 <- ggplot(tplot3, aes(area = concentration, fill = size, subgroup = size, label = pigment))+
-  geom_treemap(layout = 'fixed')+
-  geom_treemap_subgroup_text(layout = 'fixed', place = 'middle', fontface = 'bold', size = 14)+
-  geom_treemap_text(layout = 'fixed', place = 'bottomright', 'size' = 11, colour = 'white', fontface = 'italic')+
-  guides(fill = "none")+
-  scale_fill_brewer(palette = 'Dark2')
-
-g5 <- ggplot(tplot4, aes(area = concentration, fill = size, subgroup = size, label = pigment))+
-geom_treemap(layout = 'fixed')+
-geom_treemap_subgroup_text(layout = 'fixed', place = 'middle', fontface = 'bold', size = 14)+
-geom_treemap_text(layout = 'fixed', place = 'bottomright', 'size' = 11, colour = 'white', fontface = 'italic')+
-guides(fill = "none")+
-scale_fill_brewer(palette = 'Dark2')
-
-(ga|gb|gc|gd) /(g2 | g3 | g4 | g5)
-
-
+dataset <- select(new_training, bouss, depth, fluo_440, fluo_470, fluo_532, cp, f440_f470, f532_f470, cluster) %>% 
+  mutate(bb700 = bbp) %>% na.omit()
 #write_csv(dataset, "Boussole/Output/Data/Compiled/ml_dataset.csv")
+
+dataset_3cluster <- dataset %>% mutate(cluster = case_when(cluster == 0 ~ 0,
+                                                          cluster == 1 ~ 1,
+                                                          cluster == 2 ~ 1,
+                                                          cluster == 3 ~ 2,
+                                                          TRUE ~ cluster))
+
+#write_csv(dataset_3cluster, "Boussole/Output/Data/Compiled/hplc_mf_3_clusterised_cp.csv")
+
+dataset_2cluster <- dataset %>% mutate(cluster = case_when(cluster == 0 ~ 0,
+                                                           cluster == 1 ~ 1,
+                                                           cluster == 2 ~ 1,
+                                                           cluster == 3 ~ 0,
+                                                           TRUE ~ cluster))
+
+#write_csv(dataset_2cluster, "Boussole/Output/Data/Compiled/hplc_mf_2_clusterised_cp.csv")
 
 ggplot(new_training)+
   geom_point(aes(x = bbp_cp, y = fluo_470))

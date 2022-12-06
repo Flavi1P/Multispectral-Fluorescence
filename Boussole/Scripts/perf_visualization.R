@@ -27,7 +27,7 @@ ggplot(perf)+
   ylab("Mean balanced recall (%)")+
   xlab("")+
   scale_fill_brewer(palette = "Blues", name = "Number of \n predicted cluster")+
-  scale_x_discrete(labels = c("F440 F470 F532 \n BBP CP", "F440 F470 \n BBP CP", "F440 F470 F532 \n BBP", "F440 F470 \n BBP", "F440 F470"))+
+  scale_x_discrete(labels = c("F440 F470 F532 \n BBP CP", "F440 F470 \n BBP CP", "F440 F470 F532 \n BBP", "F440 F470 \n BBP", "F440 F470 F532"))+
   theme_bw(base_size = 12)
 
 ggsave("Boussole/Output/Plots/recall_performance.png", width = 20, height = 15, dpi = 300, units = "cm")
