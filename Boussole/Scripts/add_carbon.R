@@ -17,5 +17,5 @@ pf_carbon <- left_join(pf_bouss, carbon) %>%
   filter(!is.na(ct))
 table(pf_bouss$bouss)
 
-write_csv(pf_carbon, "Boussole/Output/Data/Compiled/ctd_echo_hplc_cyto_carbon.csv")
+#write_csv(pf_carbon, "Boussole/Output/Data/Compiled/ctd_echo_hplc_cyto_carbon.csv")
 
